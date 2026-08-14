@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import type { User } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { MockSupabaseClient } from "./mock-client";
@@ -16,11 +17,11 @@ export async function updateSession(request: NextRequest) {
       get: (name: string) => request.cookies.get(name),
       set: (name: string, value: string, options?: Record<string, unknown>) => {
         request.cookies.set(name, value);
-        supabaseResponse.cookies.set(name, value, options as any);
+        supabaseResponse.cookies.set(name, value, options as Record<string, string | number | boolean | Date>);
       }
     });
     const { data: { user } } = await mockClient.auth.getUser();
-    return { supabaseResponse, user: user as any };
+    return { supabaseResponse, user: user as unknown as User | null };
   }
 
   const supabase = createServerClient(

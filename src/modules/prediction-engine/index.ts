@@ -1,4 +1,13 @@
-export type { PredictionInput, PredictionResult, PredictionEngine } from './types';
-export { generateDailyHoroscope } from './daily-horoscope';
-export { analyzeTransits } from './transit-analyzer';
-export { analyzeCompatibility } from './compatibility';
+export { generateDailyForecastForSign, getDailyForecast } from './daily-horoscope';
+export type { DailyForecast } from './daily-horoscope';
+export { generateHourlyForecast, getHoraPlanet } from './hourly-horoscope';
+export type { HourlySlot } from './hourly-horoscope';
+export { calculatePanchang } from './panchang';
+export type { PanchangData } from './panchang';
+export { calculateNumerology } from './numerology';
+export type { NumerologyResult } from './numerology';
+export { calculateCompatibility } from './compatibility';
+export type { CompatibilityResult, CompatibilityKuta } from './compatibility';
+export { getCurrentTransits, transitAspect } from './transits';
+export type { TransitPlanet } from './transits';
+export * from './astro-math';

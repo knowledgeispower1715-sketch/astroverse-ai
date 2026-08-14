@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { supabaseResponse, user } = await updateSession(request);
   const pathname = request.nextUrl.pathname;
 
@@ -41,7 +41,8 @@ export async function middleware(request: NextRequest) {
 
     // Role-based verification for /admin path names
     if (pathname.startsWith("/admin")) {
-      const role = user.app_metadata?.role || user.user_metadata?.role;
+      const u = user as { app_metadata?: { role?: string }; user_metadata?: { role?: string } };
+      const role = u.app_metadata?.role || u.user_metadata?.role;
       if (role !== "admin") {
         const redirectUrl = request.nextUrl.clone();
         redirectUrl.pathname = "/dashboard";
@@ -62,13 +63,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files (images, SVGs)
-     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
