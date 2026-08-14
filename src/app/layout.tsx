@@ -1,26 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Outfit } from "next/font/google";
-import { Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import "./globals.css";
+const inter = { variable: "font-inter" };
+const outfit = { variable: "font-outfit" };
+const geistMono = { variable: "font-geist-mono" };
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const outfit = Outfit({
-  variable: "--font-outfit",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://astroverse.ai"),
