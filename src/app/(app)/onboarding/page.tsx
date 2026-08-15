@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { GlobalLocationPicker } from "@/components/location/global-location-picker";
+import { WORLD_CITIES } from "@/modules/location-engine";
 
 interface FormData {
   displayName: string;
@@ -57,6 +58,27 @@ export default function OnboardingPage() {
         return;
       }
 
+      // Resolve coordinates if missing
+      let lat = form.latitude;
+      let lng = form.longitude;
+      let tz = form.timezone || "UTC";
+      let ctry = form.country || "";
+
+      if (!lat && !lng && form.birthPlace) {
+        const queryLower = form.birthPlace.toLowerCase();
+        const found = WORLD_CITIES.find(
+          (c) =>
+            queryLower.includes(c.name.toLowerCase()) ||
+            c.formattedAddress.toLowerCase().includes(queryLower)
+        );
+        if (found) {
+          lat = found.latitude;
+          lng = found.longitude;
+          tz = found.timezone;
+          ctry = found.country;
+        }
+      }
+
       // 1. Update or create user profile
       await supabase.from("profiles").upsert({
         user_id: user.id,
@@ -73,10 +95,10 @@ export default function OnboardingPage() {
         date_of_birth: form.birthDate,
         time_of_birth: form.timePrecision === "unknown" ? "12:00:00" : `${form.birthTime}:00`,
         birth_place: form.birthPlace,
-        country: form.country,
-        latitude: form.latitude,
-        longitude: form.longitude,
-        timezone: form.timezone,
+        country: ctry,
+        latitude: lat,
+        longitude: lng,
+        timezone: tz,
         is_primary: true,
         is_approximate_time: form.timePrecision === "approximate",
         is_unknown_time: form.timePrecision === "unknown",

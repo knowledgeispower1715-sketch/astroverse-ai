@@ -28,6 +28,7 @@ import { createClient } from "@/lib/supabase/client";
 import { logout } from "@/app/(auth)/actions";
 import { buildUserAstrologyContext, type UserAstrologyContext } from "@/modules/astrology-engine";
 import { ProfileSwitcher, type ProfileOption } from "@/components/profile/profile-switcher";
+import { InteractiveCelestialCanvas } from "@/components/celestial/interactive-celestial-canvas";
 
 interface RawBirthProfile {
   id: string;
@@ -294,6 +295,9 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* 3D Celestial Planetary Orrery */}
+        <InteractiveCelestialCanvas />
 
         {/* Core Astrology Tools Catalog */}
         <div className="space-y-4">

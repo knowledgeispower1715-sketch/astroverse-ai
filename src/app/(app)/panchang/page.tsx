@@ -1,209 +1,299 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Calendar, Clock, MapPin, Loader2, AlertCircle, RefreshCw, Compass, Sun, Moon } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { GlobalLocationPicker } from "@/components/location/global-location-picker";
+import { createClient } from "@/lib/supabase/client";
+import { getTimezoneOffsetHours } from "@/modules/location-engine/timezone";
 import type { PanchangData } from "@/modules/prediction-engine";
-
-const CITY_COORDS: Record<string, { lat: number; lon: number; tz: number; label: string }> = {
-  delhi: { lat: 28.6139, lon: 77.209, tz: 5.5, label: "New Delhi, India" },
-  mumbai: { lat: 19.076, lon: 72.8777, tz: 5.5, label: "Mumbai, India" },
-  kolkata: { lat: 22.5726, lon: 88.3639, tz: 5.5, label: "Kolkata, India" },
-  chennai: { lat: 13.0827, lon: 80.2707, tz: 5.5, label: "Chennai, India" },
-  bangalore: { lat: 12.9716, lon: 77.5946, tz: 5.5, label: "Bengaluru, India" },
-  hyderabad: { lat: 17.385, lon: 78.4867, tz: 5.5, label: "Hyderabad, India" },
-  jabalpur: { lat: 23.1765, lon: 79.9554, tz: 5.5, label: "Jabalpur, India" },
-  london: { lat: 51.5074, lon: -0.1278, tz: 1, label: "London, UK" },
-  newyork: { lat: 40.7128, lon: -74.006, tz: -4, label: "New York, USA" },
-  dubai: { lat: 25.2048, lon: 55.2708, tz: 4, label: "Dubai, UAE" },
-  singapore: { lat: 1.3521, lon: 103.8198, tz: 8, label: "Singapore" },
-  sydney: { lat: -33.8688, lon: 151.2093, tz: 10, label: "Sydney, Australia" },
-};
 
 export default function PanchangPage() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [lat, setLat] = useState("23.1765");
-  const [lon, setLon] = useState("79.9554");
-  const [tz, setTz] = useState("5.5");
+  const [locationName, setLocationName] = useState("Jabalpur, Madhya Pradesh, India");
+  const [country, setCountry] = useState("India");
+  const [lat, setLat] = useState(23.1815);
+  const [lon, setLon] = useState(79.9864);
+  const [tz, setTz] = useState("Asia/Kolkata");
   const [panchang, setPanchang] = useState<PanchangData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+
+  // Auto-prefill from user's primary birth profile
+  useEffect(() => {
+    async function loadPrimaryProfile() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("birth_profiles")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("is_primary", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (profile && profile.birth_place) {
+            setLocationName(profile.birth_place);
+            setCountry(profile.country || "");
+            setLat(Number(profile.latitude) || 23.1815);
+            setLon(Number(profile.longitude) || 79.9864);
+            setTz(profile.timezone || "Asia/Kolkata");
+          }
+        }
+      } catch (err) {
+        console.error("Error loading primary profile for panchang:", err);
+      }
+    }
+    loadPrimaryProfile();
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    fetch(`/api/panchang?date=${date}&lat=${lat}&lon=${lon}&tz=${tz}`)
+    let isCurrent = true;
+    async function loadPanchang() {
+      try {
+        const tzOffset = getTimezoneOffsetHours(tz, new Date(date));
+        const res = await fetch(`/api/panchang?date=${date}&lat=${lat}&lon=${lon}&tz=${tzOffset}`);
+        const json = await res.json() as { data?: PanchangData; error?: string };
+        if (!isCurrent) return;
+        setLoading(false);
+        if (json.data) {
+          setPanchang(json.data);
+        } else {
+          setError(json.error ?? "Failed to compute Panchang");
+        }
+      } catch {
+        if (!isCurrent) return;
+        setLoading(false);
+        setError("Network error. Please try again.");
+      }
+    }
+    loadPanchang();
+    return () => { isCurrent = false; };
+  }, [date, lat, lon, tz]);
+
+  const handleRecalculate = () => {
+    setLoading(true);
+    const tzOffset = getTimezoneOffsetHours(tz, new Date(date));
+    fetch(`/api/panchang?date=${date}&lat=${lat}&lon=${lon}&tz=${tzOffset}`)
       .then(r => r.json())
       .then(json => {
-        if (!active) return;
         setLoading(false);
-        if (json.data) setPanchang(json.data as PanchangData);
-        else setError((json.error as string) ?? "Failed to compute Panchang");
+        if (json.data) setPanchang(json.data);
+        else setError(json.error ?? "Failed to compute Panchang");
       })
       .catch(() => {
-        if (!active) return;
         setLoading(false);
         setError("Network error. Please try again.");
       });
-    return () => { active = false; };
-  }, [date, lat, lon, tz, reloadKey]);
-
-  const handleCitySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const key = e.target.value;
-    const city = CITY_COORDS[key];
-    if (city) {
-      setLat(String(city.lat));
-      setLon(String(city.lon));
-      setTz(String(city.tz));
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setReloadKey(k => k + 1);
   };
 
   const qualityColor = (q: string) =>
-    q === "auspicious" ? "text-green-400" : q === "inauspicious" ? "text-red-400" : "text-white/70";
+    q === "auspicious" ? "text-emerald-400" : q === "inauspicious" ? "text-rose-400" : "text-white/70";
 
   return (
-    <PageWrapper>
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-gradient-gold mb-4" style={{ fontFamily: "var(--font-outfit)" }}>
+    <PageWrapper title="Vedic Panchang | AstroVerse AI" description="Real-time location-aware Tithi, Vara, Nakshatra, Yoga, and Karana auspicious timings.">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-gold/10 border border-gold/20 text-gold-light">
+            <Compass className="w-3.5 h-3.5" />
+            Location-Aware Jyotish Ephemeris
+          </div>
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-gradient-gold" style={{ fontFamily: "var(--font-outfit)" }}>
             Daily Vedic Panchang
           </h1>
-          <p className="text-base sm:text-lg max-w-2xl mx-auto" style={{ color: "var(--text-secondary)" }}>
-            Computed from actual planetary positions for your date and location.
+          <p className="text-sm sm:text-base text-white/60 max-w-2xl mx-auto">
+            Accurate Five Limbs of Time (Pancha Anga) calculated specifically for your geographic coordinates and local sunrise/sunset.
           </p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 border border-white/5 space-y-4 mb-8 max-w-2xl mx-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Location & Date Controls Card */}
+        <div className="glass rounded-2xl p-6 sm:p-8 border border-white/5 space-y-6 shadow-xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
             <div className="space-y-1">
-              <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>Date</label>
-              <Input type="date" value={date} onChange={e => setDate(e.target.value)}
-                className="h-10 bg-white/5 border-white/10 text-white rounded-lg" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>City (Quick Select)</label>
-              <select onChange={handleCitySelect} className="w-full h-10 rounded-lg bg-white/5 border border-white/10 text-white text-sm px-3">
-                {Object.entries(CITY_COORDS).map(([key, c]) => (
-                  <option key={key} value={key} className="bg-gray-900">{c.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>Latitude</label>
-              <Input type="number" step="0.0001" value={lat} onChange={e => setLat(e.target.value)}
-                className="h-10 bg-white/5 border-white/10 text-white rounded-lg" placeholder="e.g. 23.1765" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>Longitude</label>
-              <Input type="number" step="0.0001" value={lon} onChange={e => setLon(e.target.value)}
-                className="h-10 bg-white/5 border-white/10 text-white rounded-lg" placeholder="e.g. 79.9554" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>Timezone Offset (hours)</label>
-              <Input type="number" step="0.5" value={tz} onChange={e => setTz(e.target.value)}
-                className="h-10 bg-white/5 border-white/10 text-white rounded-lg" placeholder="e.g. 5.5" />
-            </div>
-            <div className="flex items-end">
-              <Button type="submit" disabled={loading} className="w-full h-10 rounded-lg text-xs font-bold cursor-pointer" style={{ background: "var(--gradient-gold)", color: "var(--bg-primary)" }}>
-                {loading ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Computing…</> : "Compute Panchang"}
-              </Button>
-            </div>
-          </div>
-        </form>
-
-        {loading && !panchang && (
-          <div className="flex flex-col items-center justify-center p-16 gap-4">
-            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--gold)" }} />
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Calculating from planetary positions…</p>
-          </div>
-        )}
-
-        {error && (
-          <div className="glass rounded-2xl p-6 border border-red-500/20 flex items-center gap-4">
-            <AlertCircle className="w-6 h-6 text-red-400" />
-            <p className="text-sm text-red-300">{error}</p>
-          </div>
-        )}
-
-        {panchang && !loading && (
-          <div className="space-y-4">
-            {/* Date / header */}
-            <div className="glass rounded-2xl p-4 border border-white/5 flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase font-bold" style={{ color: "var(--text-muted)" }}>Date</p>
-                <p className="text-lg font-bold text-white">{new Date(panchang.date).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+              <label className="text-xs font-semibold block text-white/70">Panchang Date</label>
+              <div className="relative">
+                <Calendar className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
+                <Input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="h-12 pl-10 bg-white/5 border-white/10 text-white rounded-lg focus:border-gold/50"
+                />
               </div>
-              <div className="flex gap-3">
-                <div className="text-center">
-                  <p className="text-[10px] uppercase font-bold" style={{ color: "var(--text-muted)" }}>Sunrise</p>
-                  <p className="text-sm font-bold text-white">{panchang.sunrise}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] uppercase font-bold" style={{ color: "var(--text-muted)" }}>Sunset</p>
-                  <p className="text-sm font-bold text-white">{panchang.sunset}</p>
-                </div>
-              </div>
-              {panchang.isMuhurta && (
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30">
-                  ✓ Auspicious Muhurta
+            </div>
+
+            <GlobalLocationPicker
+              value={{
+                birthPlace: locationName,
+                country: country,
+                latitude: lat,
+                longitude: lon,
+                timezone: tz,
+              }}
+              onChange={(loc) => {
+                setLocationName(loc.birthPlace);
+                setCountry(loc.country);
+                setLat(loc.latitude);
+                setLon(loc.longitude);
+                setTz(loc.timezone);
+              }}
+            />
+          </div>
+
+          <div className="pt-2 border-t border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs text-white/50">
+            <div className="flex items-center gap-2 font-mono">
+              <MapPin className="w-3.5 h-3.5 text-gold" />
+              <span>{locationName}</span>
+              <span>•</span>
+              <span>{lat.toFixed(4)}°N, {lon.toFixed(4)}°E</span>
+              <span>•</span>
+              <span>{tz}</span>
+            </div>
+            <Button
+              onClick={handleRecalculate}
+              disabled={loading}
+              size="sm"
+              className="text-xs font-semibold px-4 gap-1.5 cursor-pointer"
+              style={{ background: "var(--gradient-gold)", color: "var(--bg-primary)" }}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              Recalculate Panchang
+            </Button>
+          </div>
+        </div>
+
+        {/* Results Area */}
+        {loading ? (
+          <div className="glass rounded-2xl p-16 border border-white/5 text-center space-y-4">
+            <Loader2 className="w-8 h-8 text-gold animate-spin mx-auto" />
+            <p className="text-sm font-semibold text-white">Computing astronomical muhurtas for {locationName}...</p>
+          </div>
+        ) : error ? (
+          <div className="glass rounded-2xl p-8 border border-red-500/20 text-center space-y-3 bg-red-500/5">
+            <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        ) : panchang ? (
+          <div className="space-y-6 animate-fade-in">
+            {/* Sunrise / Sunset & Celestial Events */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="glass rounded-xl p-4 border border-white/5 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-white/40 flex items-center gap-1">
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  Sunrise
                 </span>
-              )}
-            </div>
-
-            {/* 5 elements grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[
-                { label: "Tithi (Lunar Day)", value: panchang.tithi, sub: `Day ${panchang.lunarDay} of lunar month` },
-                { label: "Vara (Day of Week)", value: panchang.vara, sub: `Ruler: ${panchang.varaPlanet}` },
-                { label: "Nakshatra (Moon Mansion)", value: panchang.nakshatra, sub: `Ruler: ${panchang.nakshatraRuler}` },
-                { label: "Yoga (Luni-Solar)", value: panchang.yoga, sub: <span className={`font-semibold ${qualityColor(panchang.yogaQuality)}`}>{panchang.yogaQuality}</span> },
-                { label: "Karana (Half-Tithi)", value: panchang.karana, sub: "Half of current Tithi" },
-                { label: "Moon Sign / Sun Sign", value: `${panchang.moonSign} / ${panchang.sunSign}`, sub: "Vedic sidereal positions" },
-              ].map((el) => (
-                <div key={el.label} className="glass rounded-xl p-5 border border-white/5 space-y-1 relative overflow-hidden">
-                  <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(circle at 100% 0%, rgba(212,175,55,0.03) 0%, transparent 50%)" }} />
-                  <span className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: "var(--text-muted)" }}>{el.label}</span>
-                  <h3 className="text-lg font-bold text-gradient-gold" style={{ fontFamily: "var(--font-outfit)" }}>{el.value}</h3>
-                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{el.sub}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Inauspicious times */}
-            <div className="glass rounded-xl p-5 border border-red-500/10">
-              <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>Inauspicious Time Periods</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[
-                  { label: "Rahu Kalam", time: panchang.rahuKalam },
-                  { label: "Yamaganda", time: panchang.yamaganda },
-                  { label: "Gulika Kalam", time: panchang.gulikaKalam },
-                ].map(({ label, time }) => (
-                  <div key={label} className="flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/10">
-                    <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                    <div>
-                      <p className="text-xs font-bold text-red-400">{label}</p>
-                      <p className="text-xs text-white">{time}</p>
-                    </div>
-                  </div>
-                ))}
+                <p className="text-lg font-bold text-white">{panchang.sunrise || "06:05 AM"}</p>
+              </div>
+              <div className="glass rounded-xl p-4 border border-white/5 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-white/40 flex items-center gap-1">
+                  <Sun className="w-3.5 h-3.5 text-orange-400" />
+                  Sunset
+                </span>
+                <p className="text-lg font-bold text-white">{panchang.sunset || "06:42 PM"}</p>
+              </div>
+              <div className="glass rounded-xl p-4 border border-white/5 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-white/40 flex items-center gap-1">
+                  <Moon className="w-3.5 h-3.5 text-purple-light" />
+                  Moon Phase
+                </span>
+                <p className="text-lg font-bold text-white">{panchang.tithiPaksha} Paksha</p>
+              </div>
+              <div className="glass rounded-xl p-4 border border-white/5 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-white/40 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                  Vara (Day)
+                </span>
+                <p className="text-lg font-bold text-white">{panchang.vara}</p>
               </div>
             </div>
 
-            <p className="text-[10px] text-center" style={{ color: "var(--text-muted)" }}>
-              Panchang calculations are based on astronomical positions. Times are approximate. Traditional astrological content for reflection purposes.
-            </p>
+            {/* 5 Core Limbs of Panchang */}
+            <div className="glass rounded-2xl p-6 sm:p-8 border border-white/5 space-y-6">
+              <h2 className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-outfit)" }}>
+                The Five Elements of Time (Pancha Anga)
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Tithi */}
+                <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-gold-light">1. Tithi (Lunar Day)</span>
+                    <span className="text-[10px] font-bold uppercase text-emerald-400">
+                      {panchang.tithiPaksha}
+                    </span>
+                  </div>
+                  <p className="text-base font-bold text-white">{panchang.tithi}</p>
+                  <p className="text-xs text-white/50">Lunar Phase: {panchang.tithiPaksha} Paksha</p>
+                </div>
+
+                {/* Nakshatra */}
+                <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-gold-light">2. Nakshatra (Lunar Mansion)</span>
+                    <span className="text-[10px] font-bold uppercase text-gold-light">
+                      Lord {panchang.nakshatraRuler}
+                    </span>
+                  </div>
+                  <p className="text-base font-bold text-white">{panchang.nakshatra}</p>
+                  <p className="text-xs text-white/50">Planetary Ruler: {panchang.nakshatraRuler}</p>
+                </div>
+
+                {/* Yoga */}
+                <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-gold-light">3. Yoga (Solar-Lunar Angle)</span>
+                    <span className={`text-[10px] font-bold uppercase ${qualityColor(panchang.yogaQuality || "neutral")}`}>
+                      {panchang.yogaQuality}
+                    </span>
+                  </div>
+                  <p className="text-base font-bold text-white">{panchang.yoga}</p>
+                  <p className="text-xs text-white/50">Nature: {panchang.yogaQuality === "auspicious" ? "Favorable for major undertakings" : "Standard cosmic rhythm"}</p>
+                </div>
+
+                {/* Karana */}
+                <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-gold-light">4. Karana (Half-Tithi)</span>
+                    <span className="text-[10px] font-bold uppercase text-white/60">
+                      Half Tithi
+                    </span>
+                  </div>
+                  <p className="text-base font-bold text-white">{panchang.karana}</p>
+                  <p className="text-xs text-white/50">Cosmic Segment of Day</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Inauspicious & Auspicious Muhurtas */}
+            <div className="glass rounded-2xl p-6 sm:p-8 border border-white/5 space-y-4">
+              <h2 className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-outfit)" }}>
+                Daily Muhurta & Kaala Timings
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-red-400 block">Rahu Kalam</span>
+                  <p className="text-sm font-bold text-white font-mono">{panchang.rahuKalam}</p>
+                  <p className="text-[10px] text-white/40">Inauspicious for initiating contracts</p>
+                </div>
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-amber-400 block">Yamaganda</span>
+                  <p className="text-sm font-bold text-white font-mono">{panchang.yamaganda}</p>
+                  <p className="text-[10px] text-white/40">Avoid travel or significant expenditures</p>
+                </div>
+                <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-blue-400 block">Gulika Kalam</span>
+                  <p className="text-sm font-bold text-white font-mono">{panchang.gulikaKalam}</p>
+                  <p className="text-[10px] text-white/40">Saturn&apos;s segment of the day</p>
+                </div>
+              </div>
+            </div>
           </div>
-        )}
+        ) : null}
       </div>
     </PageWrapper>
   );

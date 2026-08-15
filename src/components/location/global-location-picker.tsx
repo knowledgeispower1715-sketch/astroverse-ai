@@ -39,19 +39,27 @@ export function GlobalLocationPicker({ value, onChange }: GlobalLocationPickerPr
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filter local dataset or query API via useMemo
+  // Filter local dataset with multi-token support (e.g. "Paris, France")
   const results = useMemo<LocationResult[]>(() => {
     if (!query || query.length < 2) {
       return WORLD_CITIES.slice(0, 6);
     }
 
-    const q = query.toLowerCase();
-    return WORLD_CITIES.filter((city) =>
-      city.name.toLowerCase().includes(q) ||
-      (city.adminRegion && city.adminRegion.toLowerCase().includes(q)) ||
-      city.country.toLowerCase().includes(q) ||
-      city.formattedAddress.toLowerCase().includes(q)
-    );
+    const tokens = query.toLowerCase().split(/[\s,]+/).filter(Boolean);
+    return WORLD_CITIES.filter((city) => {
+      const name = city.name.toLowerCase();
+      const region = (city.adminRegion || "").toLowerCase();
+      const country = city.country.toLowerCase();
+      const formatted = city.formattedAddress.toLowerCase();
+
+      return tokens.every(
+        (token) =>
+          name.includes(token) ||
+          region.includes(token) ||
+          country.includes(token) ||
+          formatted.includes(token)
+      );
+    });
   }, [query]);
 
   const handleSelect = (city: LocationResult) => {
