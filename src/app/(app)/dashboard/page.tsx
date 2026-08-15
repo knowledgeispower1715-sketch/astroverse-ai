@@ -3,7 +3,21 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sparkles, Moon, Sun, Heart, Orbit, CalendarDays, FileText, ArrowRight, User, LogOut } from "lucide-react";
+import { 
+  Sparkles, 
+  Moon, 
+  Sun, 
+  Heart, 
+  Orbit, 
+  CalendarDays, 
+  FileText, 
+  ArrowRight, 
+  User, 
+  LogOut,
+  Layers,
+  MapPin,
+  Compass
+} from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { AnimatedCard } from "@/components/shared/animated-card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +28,7 @@ import { logout } from "@/app/(auth)/actions";
 
 const DASHBOARD_TOOLS = [
   { href: "/horoscope", label: "Horoscopes", desc: "View daily, weekly, and hourly forecasts.", icon: Sun, color: "from-[#f5d061] to-[#ff9a56]" },
+  { href: "/tarot", label: "Tarot Oracle", desc: "Draw 78-card archetypes aligned with transit cycles.", icon: Layers, color: "from-[#8b5cf6] to-[#ec4899]" },
   { href: "/kundli", label: "Kundli Generator", desc: "Create traditional Vedic birth charts.", icon: FileText, color: "from-[#ec4899] to-[#8b5cf6]" },
   { href: "/compatibility", label: "Compatibility", desc: "Check synastry scores between charts.", icon: Heart, color: "from-[#a855f7] to-[#ec4899]" },
   { href: "/transit", label: "Transit Tracker", desc: "Monitor planetary transits in real-time.", icon: Orbit, color: "from-[#7c3aed] to-[#a855f7]" },
@@ -26,6 +41,7 @@ export default function DashboardPage() {
   const moonPhase = getMoonPhase();
   const zodiacSeason = getCurrentZodiacSeason();
   const [userName, setUserName] = useState("Seeker");
+  const [userProfile, setUserProfile] = useState<{ birth_place?: string; birth_date?: string } | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
 
   useEffect(() => {
@@ -36,6 +52,17 @@ export default function DashboardPage() {
         if (user) {
           const name = user.user_metadata?.name || user.email?.split("@")[0] || "Seeker";
           setUserName(name);
+
+          // Try fetching birth profile if available
+          const { data: profile } = await supabase
+            .from("birth_profiles")
+            .select("birth_place, birth_date")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (profile) {
+            setUserProfile(profile);
+          }
         }
       } catch (err) {
         console.error("Error fetching user session:", err);
@@ -66,7 +93,11 @@ export default function DashboardPage() {
                 <h1 className="text-xl sm:text-2xl font-bold text-gradient-gold" style={{ fontFamily: "var(--font-outfit)" }}>
                   Welcome, {loadingUser ? "..." : userName}
                 </h1>
-                <p className="text-xs sm:text-sm" style={{ color: "var(--text-secondary)" }}>Your cosmic blueprint is ready for exploration.</p>
+                <p className="text-xs sm:text-sm" style={{ color: "var(--text-secondary)" }}>
+                  {userProfile?.birth_place 
+                    ? `Cosmic chart aligned with ${userProfile.birth_place}`
+                    : "Your cosmic blueprint is ready for exploration."}
+                </p>
               </div>
             </div>
             
@@ -87,6 +118,28 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Onboarding Callout Banner (if no birth profile) */}
+        {!userProfile && !loadingUser && (
+          <div className="glass rounded-2xl p-5 border border-gold/30 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center shrink-0">
+                <Compass className="w-5 h-5 text-gold" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Complete Your Birth Blueprint</h3>
+                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  Add your exact birth date, time, and coordinates to unlock 100% personalized transit calculations.
+                </p>
+              </div>
+            </div>
+            <Link href="/onboarding">
+              <Button className="h-9 px-5 text-xs font-semibold rounded-lg shrink-0 cursor-pointer" style={{ background: "var(--gradient-gold)", color: "var(--bg-primary)" }}>
+                Start Onboarding <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            </Link>
+          </div>
+        )}
 
         {/* Dynamic Widgets */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -125,15 +178,15 @@ export default function DashboardPage() {
           {/* Daily Guidance Widget */}
           <div className="glass rounded-2xl p-6 border border-white/5 flex flex-col justify-between h-48 relative overflow-hidden">
             <div className="flex items-center justify-between relative z-10">
-              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Guidance Indicator</span>
+              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Tarot Guidance</span>
               <Sparkles className="w-5 h-5" style={{ color: "var(--gold)" }} />
             </div>
             <div className="my-3 relative z-10">
-              <h2 className="text-lg font-semibold text-white mb-1">Focus on self-reflection</h2>
-              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Take time today to meditate, journal, and align with your spiritual intentions. Avoid impulsive reactions.</p>
+              <h2 className="text-lg font-semibold text-white mb-1">Draw Today&apos;s Card</h2>
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Seek archetypal counsel for current planetary positions and focus your intentions.</p>
             </div>
-            <Link href="/remedies" className="text-xs font-semibold inline-flex items-center gap-1 hover:underline relative z-10" style={{ color: "var(--gold-light)" }}>
-              Recommended Remedies <ArrowRight className="w-3 h-3" />
+            <Link href="/tarot" className="text-xs font-semibold inline-flex items-center gap-1 hover:underline relative z-10" style={{ color: "var(--gold-light)" }}>
+              Draw Tarot Cards <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
         </div>

@@ -14,6 +14,7 @@ export async function proxy(request: NextRequest) {
     "/transit",
     "/tarot",
     "/settings",
+    "/onboarding",
     "/kundli",
     "/panchang",
     "/numerology",
