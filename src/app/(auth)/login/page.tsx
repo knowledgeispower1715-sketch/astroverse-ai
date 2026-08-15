@@ -9,9 +9,11 @@ import { Input } from "@/components/ui/input";
 import { isValidEmail } from "@/utils/validators";
 import { login } from "../actions";
 import { GoogleAuthButton } from "@/components/auth/google-auth-button";
+import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [authMethod, setAuthMethod] = useState<"email" | "phone">("email");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
@@ -76,11 +78,40 @@ export default function LoginPage() {
 
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-white/10" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">Or with email</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">Or choose method</span>
             <div className="flex-1 h-px bg-white/10" />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Auth Method Toggle */}
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-white/5 border border-white/10 text-xs">
+            <button
+              type="button"
+              onClick={() => setAuthMethod("email")}
+              className={`py-2 rounded-md font-semibold transition-all cursor-pointer ${
+                authMethod === "email"
+                  ? "bg-gold/20 border border-gold text-gold-light"
+                  : "text-white/60 hover:text-white"
+              }`}
+            >
+              Email & Password
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthMethod("phone")}
+              className={`py-2 rounded-md font-semibold transition-all cursor-pointer ${
+                authMethod === "phone"
+                  ? "bg-gold/20 border border-gold text-gold-light"
+                  : "text-white/60 hover:text-white"
+              }`}
+            >
+              Phone OTP
+            </button>
+          </div>
+
+          {authMethod === "phone" ? (
+            <PhoneAuthForm />
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email */}
             <div className="space-y-1">
               <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>Email Address</label>
@@ -147,6 +178,7 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
+          )}
 
           <div className="text-center mt-6 pt-6 border-t border-white/5">
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>

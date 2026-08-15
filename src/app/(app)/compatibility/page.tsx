@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { RefreshCw, Loader2, AlertCircle } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { createClient } from "@/lib/supabase/client";
 import type { CompatibilityResult, CompatibilityKuta } from "@/modules/prediction-engine";
 
 function ScoreRing({ score, size = 80 }: { score: number; size?: number }) {
@@ -40,12 +41,43 @@ function KutaRow({ kuta }: { kuta: CompatibilityKuta }) {
 
 export default function CompatibilityPage() {
   const [formData, setFormData] = useState({
-    name1: "", dob1: "", time1: "", place1: "",
-    name2: "", dob2: "", time2: "", place2: "",
+    name1: "", dob1: "", time1: "12:00", place1: "",
+    name2: "", dob2: "", time2: "12:00", place2: "",
   });
   const [result, setResult] = useState<CompatibilityResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadPrimaryProfile() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("birth_profiles")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("is_primary", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (profile && profile.date_of_birth) {
+            setFormData((prev) => ({
+              ...prev,
+              name1: profile.name || user.user_metadata?.name || "Self",
+              dob1: profile.date_of_birth,
+              time1: profile.time_of_birth ? profile.time_of_birth.slice(0, 5) : "12:00",
+              place1: profile.birth_place || "",
+            }));
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching primary profile:", err);
+      }
+    }
+    loadPrimaryProfile();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
@@ -27,6 +27,24 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { logout } from "@/app/(auth)/actions";
 import { buildUserAstrologyContext, type UserAstrologyContext } from "@/modules/astrology-engine";
+import { ProfileSwitcher, type ProfileOption } from "@/components/profile/profile-switcher";
+
+interface RawBirthProfile {
+  id: string;
+  name?: string;
+  profile_name?: string;
+  relationship?: string;
+  date_of_birth?: string;
+  time_of_birth?: string;
+  birth_place?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  timezone?: string;
+  is_primary?: boolean;
+  is_approximate_time?: boolean;
+  is_unknown_time?: boolean;
+}
 
 const DASHBOARD_TOOLS = [
   { href: "/kundli", label: "Kundli Generator", desc: "Generate authentic Vedic birth charts with planetary placements and D1/D9.", icon: FileText, color: "from-[#f5d061] to-[#d4af37]" },
@@ -43,8 +61,8 @@ export default function DashboardPage() {
   const moonPhase = getMoonPhase();
   const zodiacSeason = getCurrentZodiacSeason();
   const [userName, setUserName] = useState("Seeker");
-  const [astroContext, setAstroContext] = useState<UserAstrologyContext | null>(null);
-  const [hasBirthProfile, setHasBirthProfile] = useState<boolean | null>(null);
+  const [profiles, setProfiles] = useState<RawBirthProfile[]>([]);
+  const [activeProfileId, setActiveProfileId] = useState<string>("");
   const [loadingUser, setLoadingUser] = useState(true);
 
   useEffect(() => {
@@ -56,32 +74,16 @@ export default function DashboardPage() {
           const name = user.user_metadata?.name || user.email?.split("@")[0] || "Seeker";
           setUserName(name);
 
-          // Fetch primary birth profile
-          const { data: profile } = await supabase
+          // Fetch all birth profiles owned by user
+          const { data: rawProfiles } = await supabase
             .from("birth_profiles")
             .select("*")
             .eq("user_id", user.id)
-            .order("is_primary", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .order("is_primary", { ascending: false });
 
-          if (profile && profile.date_of_birth && profile.birth_place) {
-            setHasBirthProfile(true);
-            const ctx = buildUserAstrologyContext({
-              name: profile.name || name,
-              dateOfBirth: profile.date_of_birth,
-              timeOfBirth: profile.time_of_birth || "12:00:00",
-              birthPlace: profile.birth_place,
-              country: profile.country,
-              latitude: Number(profile.latitude) || 0,
-              longitude: Number(profile.longitude) || 0,
-              timezone: profile.timezone || "UTC",
-              isApproximateTime: profile.is_approximate_time,
-              isUnknownTime: profile.is_unknown_time,
-            });
-            setAstroContext(ctx);
-          } else {
-            setHasBirthProfile(false);
+          if (rawProfiles && rawProfiles.length > 0) {
+            setProfiles(rawProfiles);
+            setActiveProfileId(rawProfiles[0].id);
           }
         }
       } catch (err) {
@@ -92,6 +94,39 @@ export default function DashboardPage() {
     }
     fetchUserData();
   }, []);
+
+  const activeRawProfile = useMemo(() => {
+    return profiles.find((p) => p.id === activeProfileId) || profiles[0] || null;
+  }, [profiles, activeProfileId]);
+
+  const astroContext = useMemo<UserAstrologyContext | null>(() => {
+    if (!activeRawProfile || !activeRawProfile.date_of_birth || !activeRawProfile.birth_place) {
+      return null;
+    }
+    return buildUserAstrologyContext({
+      name: activeRawProfile.name || userName,
+      dateOfBirth: activeRawProfile.date_of_birth,
+      timeOfBirth: activeRawProfile.time_of_birth || "12:00:00",
+      birthPlace: activeRawProfile.birth_place,
+      country: activeRawProfile.country,
+      latitude: Number(activeRawProfile.latitude) || 0,
+      longitude: Number(activeRawProfile.longitude) || 0,
+      timezone: activeRawProfile.timezone || "UTC",
+      isApproximateTime: activeRawProfile.is_approximate_time,
+      isUnknownTime: activeRawProfile.is_unknown_time,
+    });
+  }, [activeRawProfile, userName]);
+
+  const profileOptions = useMemo<ProfileOption[]>(() => {
+    return profiles.map((p) => ({
+      id: p.id,
+      name: p.name || p.profile_name || "My Chart",
+      relationship: p.relationship || (p.is_primary ? "Self" : "Family"),
+      birthPlace: p.birth_place || "Global",
+      dateOfBirth: p.date_of_birth || "",
+      isPrimary: p.is_primary,
+    }));
+  }, [profiles]);
 
   const handleSignOut = async () => {
     await logout();
@@ -111,10 +146,20 @@ export default function DashboardPage() {
                 {userName.charAt(0).toUpperCase()}
               </div>
               <div>
-                <h1 className="text-xl sm:text-3xl font-extrabold text-gradient-gold" style={{ fontFamily: "var(--font-outfit)" }}>
-                  Welcome, {loadingUser ? "..." : userName}
-                </h1>
-                <p className="text-xs sm:text-sm text-white/60 flex items-center gap-2 mt-0.5">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="text-xl sm:text-3xl font-extrabold text-gradient-gold" style={{ fontFamily: "var(--font-outfit)" }}>
+                    Welcome, {loadingUser ? "..." : userName}
+                  </h1>
+                  {profileOptions.length > 0 && (
+                    <ProfileSwitcher
+                      profiles={profileOptions}
+                      activeProfileId={activeProfileId}
+                      onSelectProfile={setActiveProfileId}
+                    />
+                  )}
+                </div>
+
+                <p className="text-xs sm:text-sm text-white/60 flex items-center gap-2 mt-1">
                   {astroContext ? (
                     <>
                       <MapPin className="w-3.5 h-3.5 text-gold shrink-0" />
@@ -134,7 +179,7 @@ export default function DashboardPage() {
               <Link href="/onboarding">
                 <Button variant="outline" size="sm" className="text-xs border-gold/30 text-gold-light hover:bg-gold/10 gap-1.5 cursor-pointer">
                   <Compass className="w-3.5 h-3.5" />
-                  {hasBirthProfile ? "Edit Birth Details" : "Setup Birth Profile"}
+                  Add Birth Chart
                 </Button>
               </Link>
               <Button onClick={handleSignOut} variant="ghost" size="sm" className="text-xs text-white/50 hover:text-white cursor-pointer">
@@ -146,12 +191,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Onboarding Reminder Banner if No Birth Profile */}
-        {!loadingUser && hasBirthProfile === false && (
+        {!loadingUser && profiles.length === 0 && (
           <div className="p-6 rounded-2xl glass border border-gold/40 bg-gold/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in shadow-xl">
             <div className="space-y-1">
               <h3 className="text-base font-bold text-gold-light flex items-center gap-2">
                 <Compass className="w-5 h-5 text-gold" />
-                Complete Your Birth Blueprint
+                Initialize Your Cosmic Blueprint
               </h3>
               <p className="text-xs sm:text-sm text-white/70">
                 To unlock astronomical accuracy for your Kundli, Moon Sign, Lagna, and Dasha cycles, configure your worldwide birth location and exact time.

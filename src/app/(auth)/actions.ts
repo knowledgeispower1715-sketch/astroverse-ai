@@ -77,3 +77,45 @@ export async function updatePassword(password: string) {
 
   return { success: true };
 }
+
+export async function sendPhoneOtp(phone: string) {
+  const supabase = await createClient();
+  
+  // Normalize to E.164 (e.g. +919876543210)
+  let normalized = phone.replace(/[\s\-()]/g, "");
+  if (!normalized.startsWith("+")) {
+    normalized = `+${normalized}`;
+  }
+
+  const { error } = await supabase.auth.signInWithOtp({
+    phone: normalized,
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+export async function verifyPhoneOtp(phone: string, token: string) {
+  const supabase = await createClient();
+
+  let normalized = phone.replace(/[\s\-()]/g, "");
+  if (!normalized.startsWith("+")) {
+    normalized = `+${normalized}`;
+  }
+
+  const { error } = await supabase.auth.verifyOtp({
+    phone: normalized,
+    token,
+    type: "sms",
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/", "layout");
+  return { success: true };
+}
