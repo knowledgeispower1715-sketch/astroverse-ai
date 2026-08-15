@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "motion/react";
 import { ArrowRight, Telescope } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -107,27 +108,33 @@ export function HeroSection() {
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
             <Button
+              asChild
               size="lg"
-              className="text-base font-semibold rounded-full px-8 h-12 sm:h-14 gap-2 group"
+              className="text-base font-semibold rounded-full px-8 h-12 sm:h-14 gap-2 group cursor-pointer"
               style={{
                 background: "var(--gradient-gold)",
                 color: "var(--bg-primary)",
               }}
             >
-              Explore Your Chart
-              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              <Link href="/register">
+                Create Your Account
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </Link>
             </Button>
             <Button
+              asChild
               size="lg"
               variant="outline"
-              className="text-base font-semibold rounded-full px-8 h-12 sm:h-14"
+              className="text-base font-semibold rounded-full px-8 h-12 sm:h-14 cursor-pointer"
               style={{
                 borderColor: "rgba(212, 175, 55, 0.3)",
                 color: "var(--gold-light)",
                 background: "transparent",
               }}
             >
-              Learn More
+              <Link href="#features">
+                Explore Features
+              </Link>
             </Button>
           </motion.div>
         </motion.div>

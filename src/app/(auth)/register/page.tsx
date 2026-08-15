@@ -53,7 +53,7 @@ export default function RegisterPage() {
         setStatus("error");
         setMessage(result.error || "Failed to create account.");
       } else {
-        router.push("/dashboard");
+        router.push("/onboarding");
       }
     } catch {
       setStatus("error");
