@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { drawCards, SPREADS } from "@/modules/tarot-engine";
+import { drawCards, SPREADS, TarotReading } from "@/modules/tarot-engine";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
@@ -32,7 +32,37 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { spreadId = "three-card", question, save = false } = body;
+
+    // 1. If explicitly saving an existing reading
+    if (body.action === "save" && body.reading) {
+      const existingReading = body.reading as TarotReading;
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const { error: insertError } = await supabase.from("tarot_readings").insert({
+        id: existingReading.id,
+        user_id: user.id,
+        spread_id: existingReading.spreadId,
+        question: existingReading.question,
+        drawn_cards: existingReading.drawnCards,
+        cosmic_context: existingReading.cosmicContext,
+        created_at: existingReading.createdAt,
+      });
+
+      if (insertError) {
+        console.error("Save reading error:", insertError);
+        return NextResponse.json({ error: "Failed to save reading to database" }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, readingId: existingReading.id });
+    }
+
+    // 2. Otherwise generate a new reading
+    const { spreadId = "three-card", question } = body;
 
     if (!SPREADS[spreadId]) {
       return NextResponse.json(
@@ -43,26 +73,9 @@ export async function POST(request: NextRequest) {
 
     const reading = drawCards(spreadId, question);
 
-    if (save) {
-      const supabase = await createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (user) {
-        await supabase.from("tarot_readings").insert({
-          id: reading.id,
-          user_id: user.id,
-          spread_id: reading.spreadId,
-          question: reading.question,
-          drawn_cards: reading.drawnCards,
-          cosmic_context: reading.cosmicContext,
-          created_at: reading.createdAt,
-        });
-      }
-    }
-
     return NextResponse.json({ reading });
   } catch (error) {
     console.error("Tarot generation error:", error);
-    return NextResponse.json({ error: "Failed to generate tarot reading" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to process tarot reading" }, { status: 500 });
   }
 }

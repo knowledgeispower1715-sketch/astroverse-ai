@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Sparkles, 
   Layers, 
@@ -13,7 +13,8 @@ import {
   Mountain, 
   Compass, 
   Clock,
-  History
+  History,
+  Info
 } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { Button } from "@/components/ui/button";
@@ -55,15 +56,19 @@ export default function TarotPage() {
   const [savedStatus, setSavedStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [history, setHistory] = useState<TarotReading[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const drawTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load history on mount
   useEffect(() => {
+    let isMounted = true;
     async function loadHistory() {
       try {
         const res = await fetch("/api/tarot");
         if (res.ok) {
           const data = await res.json();
-          if (data.readings) {
+          if (data.readings && isMounted) {
             setHistory(data.readings.map((r: SavedReadingRow) => ({
               id: r.id,
               spreadId: r.spread_id,
@@ -79,11 +84,17 @@ export default function TarotPage() {
       }
     }
     loadHistory();
+
+    return () => {
+      isMounted = false;
+      if (drawTimerRef.current) clearTimeout(drawTimerRef.current);
+    };
   }, []);
 
   const handleDraw = async () => {
     setStatus("drawing");
     setSavedStatus("idle");
+    setErrorMessage(null);
 
     try {
       const res = await fetch("/api/tarot", {
@@ -95,14 +106,17 @@ export default function TarotPage() {
       if (res.ok) {
         const data = await res.json();
         setReading(data.reading);
-        setTimeout(() => {
+        drawTimerRef.current = setTimeout(() => {
           setStatus("drawn");
         }, 1200);
       } else {
+        const errData = await res.json().catch(() => ({ error: "Failed to draw cards" }));
+        setErrorMessage(errData.error || "Failed to draw cards.");
         setStatus("idle");
       }
     } catch (err) {
       console.error("Draw failed:", err);
+      setErrorMessage("Network error while connecting to Tarot oracle.");
       setStatus("idle");
     }
   };
@@ -115,14 +129,13 @@ export default function TarotPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          spreadId: reading.spreadId, 
-          question: reading.question, 
-          save: true 
+          action: "save",
+          reading,
         }),
       });
       if (res.ok) {
         setSavedStatus("saved");
-        setHistory((prev) => [reading, ...prev]);
+        setHistory((prev) => [reading, ...prev.filter(h => h.id !== reading.id)]);
       } else {
         setSavedStatus("idle");
       }
@@ -160,6 +173,14 @@ export default function TarotPage() {
           </div>
         </div>
 
+        {/* Error Alert */}
+        {errorMessage && (
+          <div className="mb-6 max-w-xl mx-auto p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+            <Info className="w-4 h-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {/* History Modal / Drawer */}
         {showHistory && (
           <div className="mb-10 glass rounded-2xl p-6 border border-gold/20 animate-fade-in">
@@ -174,7 +195,7 @@ export default function TarotPage() {
                 Close
               </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
               {history.map((item, idx) => (
                 <div 
                   key={item.id || idx} 
@@ -192,7 +213,7 @@ export default function TarotPage() {
                   {item.question && (
                     <p className="text-xs text-white font-medium italic">&ldquo;{item.question}&rdquo;</p>
                   )}
-                  <div className="text-[11px] text-white/60">
+                  <div className="text-[11px] text-white/60 truncate">
                     {item.drawnCards.map((c) => c.card.name).join(" · ")}
                   </div>
                 </div>
