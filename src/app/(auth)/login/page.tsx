@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isValidEmail } from "@/utils/validators";
 import { login } from "../actions";
+import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -70,7 +71,15 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div className="glass rounded-2xl p-8 border border-white/5 shadow-2xl">
+        <div className="glass rounded-2xl p-8 border border-white/5 shadow-2xl space-y-6">
+          <GoogleAuthButton mode="signin" />
+
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-white/10" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">Or with email</span>
+            <div className="flex-1 h-px bg-white/10" />
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email */}
             <div className="space-y-1">

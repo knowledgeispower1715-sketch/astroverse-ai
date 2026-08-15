@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { Calendar, Clock, MapPin, Download, Save, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Calendar, Clock, Download, Save, AlertCircle } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { GlobalLocationPicker } from "@/components/location/global-location-picker";
+import { createClient } from "@/lib/supabase/client";
 
 interface CalculationItem {
   planet: string;
@@ -113,42 +115,73 @@ const SVGChart = ({ title, planets }: { title: string; planets: Record<string, s
 );
 
 export default function KundliPage() {
-  const [formData, setFormData] = useState({ name: "", dob: "", time: "", place: "" });
+  const [formData, setFormData] = useState({
+    name: "",
+    dob: "",
+    time: "12:00",
+    place: "",
+    country: "",
+    latitude: 28.6139,
+    longitude: 77.2090,
+    timezone: "Asia/Kolkata",
+  });
   const [status, setStatus] = useState<"idle" | "loading" | "calculated" | "error">("idle");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [exportStatus, setExportStatus] = useState<"idle" | "exporting" | "exported">("idle");
   const [resultData, setResultData] = useState<ResultData | null>(null);
 
+  useEffect(() => {
+    async function loadSavedProfile() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("birth_profiles")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("is_primary", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (profile && profile.date_of_birth) {
+            setFormData({
+              name: profile.name || user.user_metadata?.name || "Seeker",
+              dob: profile.date_of_birth,
+              time: profile.time_of_birth ? profile.time_of_birth.slice(0, 5) : "12:00",
+              place: profile.birth_place || "New Delhi, India",
+              country: profile.country || "India",
+              latitude: Number(profile.latitude) || 28.6139,
+              longitude: Number(profile.longitude) || 77.2090,
+              timezone: profile.timezone || "Asia/Kolkata",
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching birth profile:", err);
+      }
+    }
+    loadSavedProfile();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.dob || !formData.time || !formData.place.trim()) {
+    if (!formData.name.trim() || !formData.dob || !formData.place.trim()) {
       setStatus("error");
       return;
     }
 
     setStatus("loading");
     try {
-      // Geocoding fallback: Default to New Delhi (28.6139, 77.2090)
-      let lat = 28.6139;
-      let lng = 77.2090;
-      const lowerPlace = formData.place.toLowerCase();
-      if (lowerPlace.includes("mumbai") || lowerPlace.includes("bombay")) {
-        lat = 19.0760; lng = 72.8777;
-      } else if (lowerPlace.includes("london")) {
-        lat = 51.5074; lng = -0.1278;
-      } else if (lowerPlace.includes("york")) {
-        lat = 40.7128; lng = -74.0060;
-      }
-
       const res = await fetch("/api/birth-chart", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           birthDate: formData.dob,
-          birthTime: formData.time,
-          latitude: lat,
-          longitude: lng,
-          timezone: "Asia/Kolkata",
+          birthTime: formData.time || "12:00",
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          timezone: formData.timezone,
           system: "vedic",
           houseSystem: "whole-sign"
         })
@@ -341,22 +374,26 @@ export default function KundliPage() {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>Place of Birth *</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none" style={{ color: "var(--text-muted)" }}>
-                    <MapPin className="w-4 h-4" />
-                  </span>
-                  <Input
-                    type="text"
-                    placeholder="City, State, Country"
-                    value={formData.place}
-                    onChange={(e) => setFormData({ ...formData, place: e.target.value })}
-                    className="h-12 pl-9 bg-white/5 border-white/10 text-white rounded-lg"
-                    disabled={status === "loading"}
-                  />
-                </div>
-              </div>
+              {/* Global Worldwide Location Picker */}
+              <GlobalLocationPicker
+                value={{
+                  birthPlace: formData.place,
+                  country: formData.country,
+                  latitude: formData.latitude,
+                  longitude: formData.longitude,
+                  timezone: formData.timezone,
+                }}
+                onChange={(loc) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    place: loc.birthPlace,
+                    country: loc.country,
+                    latitude: loc.latitude,
+                    longitude: loc.longitude,
+                    timezone: loc.timezone,
+                  }));
+                }}
+              />
 
               {status === "error" && (
                 <div className="flex items-center gap-2 text-xs text-red-500 font-medium bg-red-500/10 p-3 rounded-lg border border-red-500/20">

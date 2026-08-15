@@ -10,6 +10,8 @@ import { pageTransition } from "@/design-system";
 interface PageWrapperProps {
   children: React.ReactNode;
   showStarField?: boolean;
+  title?: string;
+  description?: string;
 }
 
 export function PageWrapper({ children, showStarField = true }: PageWrapperProps) {

@@ -6,6 +6,7 @@ export { calculatePlanetaryPositions, dateToJulianDay } from './calculations/pla
 export { calculateHouseCusps } from './calculations/house-systems';
 export { calculateAspects } from './calculations/aspects';
 export * from './calculations/zodiac';
+export * from './context';
 
 import type { AstrologyProvider } from './types';
 import type { AstrologySystemId } from '@/types/astrology';

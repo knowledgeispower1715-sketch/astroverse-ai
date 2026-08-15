@@ -12,10 +12,12 @@ import {
   CalendarDays, 
   FileText, 
   ArrowRight, 
-  User, 
   LogOut,
   Layers,
-  Compass
+  Compass,
+  MapPin,
+  Clock,
+  ShieldCheck
 } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { AnimatedCard } from "@/components/shared/animated-card";
@@ -24,15 +26,16 @@ import { getMoonPhase, getCurrentZodiacSeason } from "@/utils/date-utils";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { logout } from "@/app/(auth)/actions";
+import { buildUserAstrologyContext, type UserAstrologyContext } from "@/modules/astrology-engine";
 
 const DASHBOARD_TOOLS = [
-  { href: "/horoscope", label: "Horoscopes", desc: "View daily, weekly, and hourly forecasts.", icon: Sun, color: "from-[#f5d061] to-[#ff9a56]" },
-  { href: "/tarot", label: "Tarot Oracle", desc: "Draw 78-card archetypes aligned with transit cycles.", icon: Layers, color: "from-[#8b5cf6] to-[#ec4899]" },
-  { href: "/kundli", label: "Kundli Generator", desc: "Create traditional Vedic birth charts.", icon: FileText, color: "from-[#ec4899] to-[#8b5cf6]" },
-  { href: "/compatibility", label: "Compatibility", desc: "Check synastry scores between charts.", icon: Heart, color: "from-[#a855f7] to-[#ec4899]" },
-  { href: "/transit", label: "Transit Tracker", desc: "Monitor planetary transits in real-time.", icon: Orbit, color: "from-[#7c3aed] to-[#a855f7]" },
-  { href: "/numerology", label: "Numerology", desc: "Compute Life Path and Expression numbers.", icon: Sparkles, color: "from-[#ef4444] to-[#f59e0b]" },
-  { href: "/panchang", label: "Daily Panchang", desc: "Check Tithi, Vara, Nakshatra divisions.", icon: CalendarDays, color: "from-[#10b981] to-[#3b82f6]" },
+  { href: "/kundli", label: "Kundli Generator", desc: "Generate authentic Vedic birth charts with planetary placements and D1/D9.", icon: FileText, color: "from-[#f5d061] to-[#d4af37]" },
+  { href: "/horoscope", label: "Cosmic Horoscopes", desc: "Personalized daily, hourly, and weekly forecasts based on your Moon sign.", icon: Sun, color: "from-[#f59e0b] to-[#ec4899]" },
+  { href: "/tarot", label: "Tarot Oracle", desc: "Draw authentic 78-card archetypes aligned with your current transit cycles.", icon: Layers, color: "from-[#8b5cf6] to-[#6366f1]" },
+  { href: "/transit", label: "Transit Tracker", desc: "Real-time planetary transits compared against your natal placements.", icon: Orbit, color: "from-[#7c3aed] to-[#a855f7]" },
+  { href: "/panchang", label: "Daily Panchang", desc: "Location-aware Tithi, Vara, Nakshatra, Yoga, and Karana muhurtas.", icon: CalendarDays, color: "from-[#10b981] to-[#3b82f6]" },
+  { href: "/compatibility", label: "Compatibility", desc: "Ashtakoota & Guna Milan synastry analysis between two charts.", icon: Heart, color: "from-[#ec4899] to-[#f43f5e]" },
+  { href: "/numerology", label: "Numerology Matrix", desc: "Compute Life Path, Destiny, and Expression numbers from your DOB.", icon: Sparkles, color: "from-[#f59e0b] to-[#10b981]" },
 ];
 
 export default function DashboardPage() {
@@ -40,11 +43,12 @@ export default function DashboardPage() {
   const moonPhase = getMoonPhase();
   const zodiacSeason = getCurrentZodiacSeason();
   const [userName, setUserName] = useState("Seeker");
-  const [userProfile, setUserProfile] = useState<{ birth_place?: string; birth_date?: string } | null>(null);
+  const [astroContext, setAstroContext] = useState<UserAstrologyContext | null>(null);
+  const [hasBirthProfile, setHasBirthProfile] = useState<boolean | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
 
   useEffect(() => {
-    async function fetchUser() {
+    async function fetchUserData() {
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
@@ -52,24 +56,41 @@ export default function DashboardPage() {
           const name = user.user_metadata?.name || user.email?.split("@")[0] || "Seeker";
           setUserName(name);
 
-          // Try fetching birth profile if available
+          // Fetch primary birth profile
           const { data: profile } = await supabase
             .from("birth_profiles")
-            .select("birth_place, birth_date")
+            .select("*")
             .eq("user_id", user.id)
+            .order("is_primary", { ascending: false })
+            .limit(1)
             .maybeSingle();
 
-          if (profile) {
-            setUserProfile(profile);
+          if (profile && profile.date_of_birth && profile.birth_place) {
+            setHasBirthProfile(true);
+            const ctx = buildUserAstrologyContext({
+              name: profile.name || name,
+              dateOfBirth: profile.date_of_birth,
+              timeOfBirth: profile.time_of_birth || "12:00:00",
+              birthPlace: profile.birth_place,
+              country: profile.country,
+              latitude: Number(profile.latitude) || 0,
+              longitude: Number(profile.longitude) || 0,
+              timezone: profile.timezone || "UTC",
+              isApproximateTime: profile.is_approximate_time,
+              isUnknownTime: profile.is_unknown_time,
+            });
+            setAstroContext(ctx);
+          } else {
+            setHasBirthProfile(false);
           }
         }
       } catch (err) {
-        console.error("Error fetching user session:", err);
+        console.error("Error loading dashboard data:", err);
       } finally {
         setLoadingUser(false);
       }
     }
-    fetchUser();
+    fetchUserData();
   }, []);
 
   const handleSignOut = async () => {
@@ -78,146 +99,188 @@ export default function DashboardPage() {
   };
 
   return (
-    <PageWrapper>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {/* Welcome Banner */}
-        <div className="glass rounded-2xl p-6 sm:p-8 border border-white/5 mb-8 relative overflow-hidden">
+    <PageWrapper title="Dashboard | AstroVerse AI" description="Your personalized cosmic control center.">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+        
+        {/* Welcome Header */}
+        <div className="glass rounded-2xl p-6 sm:p-8 border border-white/5 relative overflow-hidden">
           <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(circle at 100% 0%, rgba(212, 175, 55, 0.08) 0%, transparent 50%)" }} />
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm shrink-0" style={{ background: "var(--gradient-cosmic)", color: "var(--bg-primary)" }}>
-                <User className="w-5 h-5 text-black" />
+              <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-base shrink-0" style={{ background: "var(--gradient-gold)", color: "var(--bg-primary)" }}>
+                {userName.charAt(0).toUpperCase()}
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-gradient-gold" style={{ fontFamily: "var(--font-outfit)" }}>
+                <h1 className="text-xl sm:text-3xl font-extrabold text-gradient-gold" style={{ fontFamily: "var(--font-outfit)" }}>
                   Welcome, {loadingUser ? "..." : userName}
                 </h1>
-                <p className="text-xs sm:text-sm" style={{ color: "var(--text-secondary)" }}>
-                  {userProfile?.birth_place 
-                    ? `Cosmic chart aligned with ${userProfile.birth_place}`
-                    : "Your cosmic blueprint is ready for exploration."}
+                <p className="text-xs sm:text-sm text-white/60 flex items-center gap-2 mt-0.5">
+                  {astroContext ? (
+                    <>
+                      <MapPin className="w-3.5 h-3.5 text-gold shrink-0" />
+                      <span>{astroContext.profile.birthPlace}</span>
+                      <span>•</span>
+                      <Clock className="w-3.5 h-3.5 text-white/40 shrink-0" />
+                      <span>{astroContext.profile.timezone}</span>
+                    </>
+                  ) : (
+                    "Welcome to your private astrological sanctuary."
+                  )}
                 </p>
               </div>
             </div>
-            
-            {/* Quick stats / info / logout */}
-            <div className="flex items-center gap-4 shrink-0 flex-wrap">
-              <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/5 text-center">
-                <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>Sun Sign</span>
-                <span className="text-xs sm:text-sm font-semibold text-white">{zodiacSeason}</span>
-              </div>
-              <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/5 text-center">
-                <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--text-muted)" }}>Moon Phase</span>
-                <span className="text-xs sm:text-sm font-semibold text-white">{moonPhase}</span>
-              </div>
-              <Button onClick={handleSignOut} variant="outline" className="text-xs gap-1.5 h-10 border-red-500/20 text-red-400 hover:bg-red-500/10 hover:text-red-500 cursor-pointer">
-                <LogOut className="w-4 h-4" />
+
+            <div className="flex items-center gap-3">
+              <Link href="/onboarding">
+                <Button variant="outline" size="sm" className="text-xs border-gold/30 text-gold-light hover:bg-gold/10 gap-1.5 cursor-pointer">
+                  <Compass className="w-3.5 h-3.5" />
+                  {hasBirthProfile ? "Edit Birth Details" : "Setup Birth Profile"}
+                </Button>
+              </Link>
+              <Button onClick={handleSignOut} variant="ghost" size="sm" className="text-xs text-white/50 hover:text-white cursor-pointer">
+                <LogOut className="w-4 h-4 mr-1" />
                 Sign Out
               </Button>
             </div>
           </div>
         </div>
 
-        {/* Onboarding Callout Banner (if no birth profile) */}
-        {!userProfile && !loadingUser && (
-          <div className="glass rounded-2xl p-5 border border-gold/30 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center shrink-0">
+        {/* Onboarding Reminder Banner if No Birth Profile */}
+        {!loadingUser && hasBirthProfile === false && (
+          <div className="p-6 rounded-2xl glass border border-gold/40 bg-gold/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in shadow-xl">
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-gold-light flex items-center gap-2">
                 <Compass className="w-5 h-5 text-gold" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-white">Complete Your Birth Blueprint</h3>
-                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                  Add your exact birth date, time, and coordinates to unlock 100% personalized transit calculations.
-                </p>
-              </div>
+                Complete Your Birth Blueprint
+              </h3>
+              <p className="text-xs sm:text-sm text-white/70">
+                To unlock astronomical accuracy for your Kundli, Moon Sign, Lagna, and Dasha cycles, configure your worldwide birth location and exact time.
+              </p>
             </div>
-            <Link href="/onboarding">
-              <Button className="h-9 px-5 text-xs font-semibold rounded-lg shrink-0 cursor-pointer" style={{ background: "var(--gradient-gold)", color: "var(--bg-primary)" }}>
-                Start Onboarding <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            <Link href="/onboarding" className="shrink-0">
+              <Button className="font-semibold text-xs rounded-full px-6 py-2 cursor-pointer gap-2" style={{ background: "var(--gradient-gold)", color: "var(--bg-primary)" }}>
+                Start Onboarding
+                <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
           </div>
         )}
 
-        {/* Dynamic Widgets */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Moon Phase Widget */}
-          <div className="glass rounded-2xl p-6 border border-white/5 flex flex-col justify-between h-48 relative overflow-hidden">
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(circle at 0% 100%, rgba(124, 58, 237, 0.05) 0%, transparent 50%)" }} />
-            <div className="flex items-center justify-between relative z-10">
-              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Lunar Aspect</span>
-              <Moon className="w-5 h-5" style={{ color: "var(--gold)" }} />
+        {/* Personal Astrology Summary Matrix */}
+        {astroContext && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 animate-fade-in">
+            {/* Moon Rashi */}
+            <div className="glass rounded-xl p-4 border border-white/10 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider flex items-center gap-1.5">
+                <Moon className="w-3.5 h-3.5 text-purple-light" />
+                Moon Sign (Rashi)
+              </span>
+              <p className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-outfit)" }}>
+                {astroContext.moon.sign}
+              </p>
+              <p className="text-[11px] text-white/50 font-mono">
+                {astroContext.moon.degree.toFixed(2)}° in {astroContext.moon.sign}
+              </p>
             </div>
-            <div className="my-3 relative z-10">
-              <h2 className="text-2xl font-bold text-white mb-1">{moonPhase}</h2>
-              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>The Moon is currently transiting through its cyclical phase, affecting emotional currents.</p>
+
+            {/* Nakshatra & Pada */}
+            <div className="glass rounded-xl p-4 border border-white/10 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-gold" />
+                Nakshatra
+              </span>
+              <p className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-outfit)" }}>
+                {astroContext.moon.nakshatra.name}
+              </p>
+              <p className="text-[11px] text-white/50">
+                Pada {astroContext.moon.nakshatra.pada} • Lord {astroContext.moon.nakshatra.ruler}
+              </p>
             </div>
-            <Link href="/panchang" className="text-xs font-semibold inline-flex items-center gap-1 hover:underline relative z-10" style={{ color: "var(--gold-light)" }}>
-              View full Panchang data <ArrowRight className="w-3 h-3" />
-            </Link>
+
+            {/* Ascendant (Lagna) */}
+            <div className="glass rounded-xl p-4 border border-white/10 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider flex items-center gap-1.5">
+                <Orbit className="w-3.5 h-3.5 text-blue-400" />
+                Ascendant (Lagna)
+              </span>
+              <p className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-outfit)" }}>
+                {astroContext.ascendant.sign}
+              </p>
+              <p className="text-[11px] text-white/50 font-mono">
+                {astroContext.ascendant.degree}° {astroContext.ascendant.minute}&apos; ({astroContext.ascendant.nakshatra.name})
+              </p>
+            </div>
+
+            {/* Current Vimshottari Dasha */}
+            <div className="glass rounded-xl p-4 border border-white/10 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                Current Mahadasha
+              </span>
+              <p className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-outfit)" }}>
+                {astroContext.currentDasha ? `${astroContext.currentDasha.planet} Dasha` : "Active"}
+              </p>
+              <p className="text-[11px] text-white/50 font-mono">
+                Until {astroContext.currentDasha ? new Date(astroContext.currentDasha.endDate).getFullYear() : "—"}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Global Celestial Weather Bar */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="glass rounded-xl p-4 border border-white/5 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple/10 text-purple-light shrink-0">
+              <Moon className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[10px] uppercase font-semibold text-white/50 tracking-wider">Current Lunar Phase</p>
+              <p className="text-sm font-semibold text-white">{moonPhase}</p>
+            </div>
           </div>
 
-          {/* Active Transits Widget */}
-          <div className="glass rounded-2xl p-6 border border-white/5 flex flex-col justify-between h-48 relative overflow-hidden">
-            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(circle at 100% 100%, rgba(212, 175, 55, 0.05) 0%, transparent 50%)" }} />
-            <div className="flex items-center justify-between relative z-10">
-              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Zodiac Transit</span>
-              <Orbit className="w-5 h-5" style={{ color: "var(--purple-light)" }} />
+          <div className="glass rounded-xl p-4 border border-white/5 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-gold/10 text-gold shrink-0">
+              <Sun className="w-5 h-5" />
             </div>
-            <div className="my-3 relative z-10">
-              <h2 className="text-2xl font-bold text-white mb-1">{zodiacSeason} Season</h2>
-              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Planetary transits align with {zodiacSeason}. Optimal energy for initiating projects and setting intentions.</p>
+            <div>
+              <p className="text-[10px] uppercase font-semibold text-white/50 tracking-wider">Solar Season</p>
+              <p className="text-sm font-semibold text-white">{zodiacSeason} Season</p>
             </div>
-            <Link href="/transit" className="text-xs font-semibold inline-flex items-center gap-1 hover:underline relative z-10" style={{ color: "var(--gold-light)" }}>
-              Open Transit Map <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
-
-          {/* Daily Guidance Widget */}
-          <div className="glass rounded-2xl p-6 border border-white/5 flex flex-col justify-between h-48 relative overflow-hidden">
-            <div className="flex items-center justify-between relative z-10">
-              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Tarot Guidance</span>
-              <Sparkles className="w-5 h-5" style={{ color: "var(--gold)" }} />
-            </div>
-            <div className="my-3 relative z-10">
-              <h2 className="text-lg font-semibold text-white mb-1">Draw Today&apos;s Card</h2>
-              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Seek archetypal counsel for current planetary positions and focus your intentions.</p>
-            </div>
-            <Link href="/tarot" className="text-xs font-semibold inline-flex items-center gap-1 hover:underline relative z-10" style={{ color: "var(--gold-light)" }}>
-              Draw Tarot Cards <ArrowRight className="w-3 h-3" />
-            </Link>
           </div>
         </div>
 
-        {/* Tools Grid */}
-        <h2 className="text-lg font-bold mb-6 text-gradient-gold" style={{ fontFamily: "var(--font-outfit)" }}>Cosmic Tools & Explorers</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {DASHBOARD_TOOLS.map((tool, index) => {
-            const Icon = tool.icon;
-            return (
-              <Link href={tool.href} key={tool.label} className="block group">
-                <AnimatedCard
-                  delay={index * 0.05}
-                  glowColor={index % 2 === 0 ? "gold" : "purple"}
-                  className="p-6 h-full flex flex-col justify-between border-white/5 group-hover:border-gold/30"
-                >
-                  <div>
-                    <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center mb-4 bg-gradient-to-br text-white", tool.color)}>
-                      <Icon className="w-5 h-5" />
+        {/* Core Astrology Tools Catalog */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-outfit)" }}>
+              Astrological Services & Oracles
+            </h2>
+            <span className="text-xs text-white/40">Free Authenticated Access</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {DASHBOARD_TOOLS.map((tool, index) => {
+              const Icon = tool.icon;
+              return (
+                <Link href={tool.href} key={tool.href} className="block group">
+                  <AnimatedCard delay={index * 0.05} className="p-6 h-full cursor-pointer transition-all duration-300 group-hover:border-gold/30">
+                    <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center mb-4 bg-gradient-to-br", tool.color)}>
+                      <Icon className="w-5 h-5 text-white" />
                     </div>
-                    <h3 className="text-base font-bold mb-1 text-white group-hover:text-gradient-gold" style={{ fontFamily: "var(--font-outfit)" }}>{tool.label}</h3>
-                    <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{tool.desc}</p>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-                    <span className="text-[10px] uppercase font-bold text-white/50 group-hover:text-gold-light transition-colors">Launch Tool</span>
-                    <ArrowRight className="w-4 h-4 text-white/30 group-hover:text-gold-light group-hover:translate-x-1 transition-all" />
-                  </div>
-                </AnimatedCard>
-              </Link>
-            );
-          })}
+                    <h3 className="text-base font-semibold text-white group-hover:text-gradient-gold mb-1" style={{ fontFamily: "var(--font-outfit)" }}>
+                      {tool.label}
+                    </h3>
+                    <p className="text-xs text-white/60 leading-relaxed">
+                      {tool.desc}
+                    </p>
+                  </AnimatedCard>
+                </Link>
+              );
+            })}
+          </div>
         </div>
+
       </div>
     </PageWrapper>
   );
