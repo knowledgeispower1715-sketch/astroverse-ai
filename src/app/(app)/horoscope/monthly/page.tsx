@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, Info, CalendarDays } from "lucide-react";
+import { ChevronLeft, CalendarDays } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { AnimatedCard } from "@/components/shared/animated-card";
 

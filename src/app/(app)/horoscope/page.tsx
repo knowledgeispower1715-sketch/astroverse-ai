@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles, ArrowRight, Sun, Calendar } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { AnimatedCard } from "@/components/shared/animated-card";
-import { Button } from "@/components/ui/button";
 import { zodiacSigns } from "@/config/astrology";
 
 const FORECAST_PERIODS = [

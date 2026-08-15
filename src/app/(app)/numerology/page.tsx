@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Hash, Calendar, Loader2, AlertCircle } from "lucide-react";
+import { Calendar, Loader2, AlertCircle } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { NumerologyResult } from "@/modules/prediction-engine";
 
-function NumberCircle({ n, label, gradient }: { n: number; label: string; gradient: string }) {
+function NumberCircle({ n, gradient }: { n: number; label?: string; gradient: string }) {
   return (
     <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4 border-2" style={{ background: gradient, color: "var(--bg-primary)", borderColor: "transparent" }}>
       {n}

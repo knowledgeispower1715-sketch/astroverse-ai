@@ -89,9 +89,7 @@ function hoursToTime(hoursUTC: number, tzOffset: number): string {
   return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-function slotToTime(slot: number, sunriseLocal: number, tzOffset: number): string {
-  return hoursToTime(sunriseLocal + slot, 0); // sunriseLocal already in local
-}
+
 
 export interface PanchangData {
   date: string;
@@ -137,7 +135,6 @@ export function calculatePanchang(date: Date, latitude: number, longitude: numbe
 
   // Nakshatra of Moon
   const moonNak = getNakshatra(sidMoon);
-  const sunNak = getNakshatra(sidSun);
 
   // Yoga: (Sun + Moon sidereal) / 13.333°
   const yogaLong = (sidSun + sidMoon) % 360;

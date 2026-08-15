@@ -18,14 +18,14 @@ export class GeminiProvider implements AIProvider {
       };
     }
 
-    const _config = {
+    const config = {
       model: options?.model || 'gemini-pro',
       maxTokens: options?.maxTokens || 1000,
       temperature: options?.temperature || 0.7,
     };
 
     return {
-      text: `Gemini-generated interpretation for: ${prompt.slice(0, 100)}...`,
+      text: `Gemini (${config.model})-generated interpretation for: ${prompt.slice(0, 100)}...`,
       usage: { promptTokens: prompt.length, completionTokens: 100, totalTokens: prompt.length + 100 },
       finishReason: 'stop',
     };

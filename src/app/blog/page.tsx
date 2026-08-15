@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Sparkles, Calendar, User, ArrowRight, Search, BookOpen } from "lucide-react";
+import { Calendar, User, ArrowRight, Search, BookOpen } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { AnimatedCard } from "@/components/shared/animated-card";
 import { Input } from "@/components/ui/input";

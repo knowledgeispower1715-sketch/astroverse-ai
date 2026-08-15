@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Check, Sparkles } from "lucide-react";
+import { Check } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { AnimatedCard } from "@/components/shared/animated-card";
 import { Button } from "@/components/ui/button";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sparkles, User, Settings, ShieldAlert, Bell, Globe, CheckCircle2, AlertCircle } from "lucide-react";
+import { User, ShieldAlert, Bell, Globe, CheckCircle2, AlertCircle } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

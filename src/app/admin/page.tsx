@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Shield, Users, Database, FileText, ArrowLeft, User } from "lucide-react";
+import { Shield, Users, Database, ArrowLeft, User } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { AnimatedCard } from "@/components/shared/animated-card";
 import { createClient } from "@/lib/supabase/client";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CalendarDays, Loader2, AlertCircle, MapPin, RefreshCw } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

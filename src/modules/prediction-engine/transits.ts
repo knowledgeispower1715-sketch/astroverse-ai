@@ -4,7 +4,6 @@
 
 import {
   dateToJD,
-  computeVedicLongitudes,
   longToSignDeg,
   tropicalSunLongitude,
   tropicalMoonLongitude,
@@ -15,7 +14,6 @@ import {
   tropicalSaturnLongitude,
   tropicalRahuLongitude,
   lahiriAyanamsa,
-  SIGNS,
   type ZodiacSignName,
 } from "./astro-math";
 

@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, ShieldAlert, Award, Star, ListChecks, CheckCircle2 } from "lucide-react";
+import { ShieldAlert, Star, ListChecks } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
-import { Button } from "@/components/ui/button";
 
 const MOCK_REMEDIES = [
   { planet: "Mars (Manglik / Affliction)", gemstone: "Red Coral (Moonga)", mantra: "Om Angarakaya Namaha", donation: "Red lentils, copper utensils on Tuesdays", fast: "Tuesday fasting" },

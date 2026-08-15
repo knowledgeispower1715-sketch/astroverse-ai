@@ -15,7 +15,6 @@ import {
   User, 
   LogOut,
   Layers,
-  MapPin,
   Compass
 } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";

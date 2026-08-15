@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Sparkles, Gem, Info, Award } from "lucide-react";
+import { Gem, Award } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { AnimatedCard } from "@/components/shared/animated-card";
 

@@ -11,8 +11,6 @@ import {
   scoreFromHash,
   SIGNS,
   type ZodiacSignName,
-  DASHA_YEARS,
-  DASHA_ORDER,
 } from "./astro-math";
 
 const SIGN_INDEX: Record<string, number> = {};

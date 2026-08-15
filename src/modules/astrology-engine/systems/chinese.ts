@@ -38,8 +38,8 @@ export class ChineseAstrologyProvider implements AstrologyProvider {
     return this.getAnimal(date.getFullYear());
   }
 
-  async getMoonSign(_date: Date, _time: string, _latitude: number, _longitude: number): Promise<string> {
-    return 'Rat';
+  async getMoonSign(date: Date): Promise<string> {
+    return ANIMALS[(date.getMonth() + 2) % 12];
   }
 
   private getAnimal(year: number): string {

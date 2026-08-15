@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, BarChart3, TrendingUp, HelpCircle } from "lucide-react";
+import { ChevronLeft, BarChart3, TrendingUp } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { AnimatedCard } from "@/components/shared/animated-card";
 

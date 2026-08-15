@@ -19,7 +19,7 @@ export class OpenAIProvider implements AIProvider {
     }
 
     // Production implementation would call OpenAI API
-    const _config = {
+    const config = {
       model: options?.model || 'gpt-4',
       maxTokens: options?.maxTokens || 1000,
       temperature: options?.temperature || 0.7,
@@ -27,7 +27,7 @@ export class OpenAIProvider implements AIProvider {
     };
 
     return {
-      text: `AI-generated interpretation for: ${prompt.slice(0, 100)}...`,
+      text: `AI (${config.model})-generated interpretation for: ${prompt.slice(0, 100)}...`,
       usage: { promptTokens: prompt.length, completionTokens: 100, totalTokens: prompt.length + 100 },
       finishReason: 'stop',
     };

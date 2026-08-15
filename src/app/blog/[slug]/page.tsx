@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, Calendar, User, BookOpen } from "lucide-react";
+import { ChevronLeft, Calendar, User } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 
 export const metadata: Metadata = {

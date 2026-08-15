@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, RefreshCw, Loader2, AlertCircle } from "lucide-react";
+import { RefreshCw, Loader2, AlertCircle } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

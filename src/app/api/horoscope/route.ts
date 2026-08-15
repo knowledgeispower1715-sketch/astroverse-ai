@@ -31,7 +31,6 @@ export async function GET(request: NextRequest) {
       const base = new Date();
       base.setHours(12, 0, 0, 0);
       for (let i = 0; i < 7; i++) {
-        const d = new Date(base.getTime() + i * 86400000);
         days.push(getDailyForecast(sign, "today"));
       }
       const avgOverall = Math.round(days.reduce((s, d) => s + d.overall, 0) / days.length);

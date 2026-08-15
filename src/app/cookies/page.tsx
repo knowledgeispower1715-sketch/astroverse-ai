@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { PageWrapper } from "@/components/shared/page-wrapper";
-import { ShieldAlert } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Cookie Policy | AstroVerse AI",
