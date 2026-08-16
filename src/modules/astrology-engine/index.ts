@@ -7,6 +7,10 @@ export { calculateHouseCusps } from './calculations/house-systems';
 export { calculateAspects } from './calculations/aspects';
 export * from './calculations/zodiac';
 export * from './context';
+export * from './canonical-context';
+export * from './rule-engine';
+export * from './timing/transit-timeline';
+export * from './explorers/planet-explorer';
 
 import type { AstrologyProvider } from './types';
 import type { AstrologySystemId } from '@/types/astrology';

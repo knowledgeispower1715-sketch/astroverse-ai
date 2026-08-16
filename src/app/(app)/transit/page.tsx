@@ -1,30 +1,25 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, AlertCircle, Orbit, Compass, User } from "lucide-react";
+import { Loader2, Orbit, Compass, User, Clock, Calendar, CheckCircle2, Info } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
-import { buildUserAstrologyContext, type UserAstrologyContext } from "@/modules/astrology-engine";
+import { 
+  buildCanonicalAstrologyContext, 
+  generateTransitTimeline, 
+  getPlanetExplorerData,
+  type CanonicalAstrologyContext,
+  type TransitTimelineWindow,
+  type PlanetExplorerData
+} from "@/modules/astrology-engine";
 import { ProfileSwitcher, type ProfileOption } from "@/components/profile/profile-switcher";
-import type { TransitPlanet } from "@/modules/prediction-engine";
+import { cn } from "@/lib/utils";
 
 const PLANET_SYMBOLS: Record<string, string> = {
   Sun: "☉", Moon: "☽", Mercury: "☿", Venus: "♀", Mars: "♂",
   Jupiter: "♃", Saturn: "♄", Rahu: "☊", Ketu: "☋",
 };
-
-interface PersonalTransitImpact {
-  planet: string;
-  transitSign: string;
-  transitDegree: number;
-  natalSign: string;
-  transitedHouse: number;
-  isRetrograde: boolean;
-  aspectToNatal: string;
-  impactType: "benefic" | "challenging" | "transformative";
-  interpretation: string;
-}
 
 interface RawBirthProfile {
   id: string;
@@ -42,11 +37,11 @@ interface RawBirthProfile {
 }
 
 export default function TransitPage() {
-  const [activeTab, setActiveTab] = useState<"personal" | "global">("personal");
-  const [transits, setTransits] = useState<TransitPlanet[]>([]);
+  const [activeTab, setActiveTab] = useState<"timeline" | "planets" | "global">("timeline");
+  const [selectedHorizon, setSelectedHorizon] = useState<string>("today");
+  const [selectedPlanet, setSelectedPlanet] = useState<string>("Jupiter");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // User birth profile state
   const [profiles, setProfiles] = useState<RawBirthProfile[]>([]);
@@ -73,6 +68,8 @@ export default function TransitPage() {
         }
       } catch (err) {
         console.error("Error loading profiles in transit page:", err);
+      } finally {
+        setLoading(false);
       }
     }
     loadUserData();
@@ -82,298 +79,326 @@ export default function TransitPage() {
     return profiles.find((p) => p.id === activeProfileId) || profiles[0] || null;
   }, [profiles, activeProfileId]);
 
-  const astroContext = useMemo<UserAstrologyContext | null>(() => {
+  const canonicalContext = useMemo<CanonicalAstrologyContext | null>(() => {
     if (!activeRawProfile || !activeRawProfile.date_of_birth || !activeRawProfile.birth_place) {
       return null;
     }
-    return buildUserAstrologyContext({
-      name: activeRawProfile.name || userName,
-      dateOfBirth: activeRawProfile.date_of_birth,
-      timeOfBirth: activeRawProfile.time_of_birth || "12:00:00",
-      birthPlace: activeRawProfile.birth_place,
-      country: activeRawProfile.country,
-      latitude: Number(activeRawProfile.latitude) || 0,
-      longitude: Number(activeRawProfile.longitude) || 0,
-      timezone: activeRawProfile.timezone || "UTC",
-    });
-  }, [activeRawProfile, userName]);
+    return buildCanonicalAstrologyContext(
+      {
+        name: activeRawProfile.name || userName,
+        dateOfBirth: activeRawProfile.date_of_birth,
+        timeOfBirth: activeRawProfile.time_of_birth || "12:00:00",
+        birthPlace: activeRawProfile.birth_place,
+        country: activeRawProfile.country,
+        latitude: Number(activeRawProfile.latitude) || 0,
+        longitude: Number(activeRawProfile.longitude) || 0,
+        timezone: activeRawProfile.timezone || "UTC",
+      },
+      { calculationDate: new Date(date) }
+    );
+  }, [activeRawProfile, userName, date]);
 
-  const profileOptions = useMemo<ProfileOption[]>(() => {
-    return profiles.map((p) => ({
-      id: p.id,
-      name: p.name || p.profile_name || "My Chart",
-      relationship: p.relationship || (p.is_primary ? "Self" : "Family"),
-      birthPlace: p.birth_place || "Global",
-      dateOfBirth: p.date_of_birth || "",
-      isPrimary: p.is_primary,
-    }));
-  }, [profiles]);
+  const timelineWindows = useMemo<TransitTimelineWindow[]>(() => {
+    if (!canonicalContext) return [];
+    return generateTransitTimeline(canonicalContext, new Date(date));
+  }, [canonicalContext, date]);
 
-  // Fetch planetary transits
-  useEffect(() => {
-    let isCurrent = true;
-    async function fetchTransits() {
-      try {
-        const res = await fetch(`/api/transit?date=${date}`);
-        const json = await res.json() as { data?: TransitPlanet[]; error?: string };
-        if (!isCurrent) return;
-        setLoading(false);
-        if (json.data) setTransits(json.data);
-        else setError(json.error ?? "Failed to load transits");
-      } catch {
-        if (!isCurrent) return;
-        setLoading(false);
-        setError("Network error. Please try again.");
-      }
-    }
-    fetchTransits();
-    return () => { isCurrent = false; };
-  }, [date]);
+  const activeTimelineItem = useMemo(() => {
+    return timelineWindows.find((w) => w.horizon === selectedHorizon) || timelineWindows[1] || timelineWindows[0];
+  }, [timelineWindows, selectedHorizon]);
 
-  // Compute Personal Transit Matrix
-  const personalImpacts = useMemo<PersonalTransitImpact[]>(() => {
-    if (!astroContext || !transits || transits.length === 0) return [];
+  const planetExplorerData = useMemo<PlanetExplorerData | null>(() => {
+    if (!canonicalContext) return null;
+    return getPlanetExplorerData(canonicalContext, selectedPlanet);
+  }, [canonicalContext, selectedPlanet]);
 
-    const SIGNS = [
-      "Aries", "Taurus", "Gemini", "Cancer",
-      "Leo", "Virgo", "Libra", "Scorpio",
-      "Sagittarius", "Capricorn", "Aquarius", "Pisces",
-    ];
-
-    const lagnaSignIndex = SIGNS.indexOf(astroContext.ascendant.sign);
-
-    return transits.map((t) => {
-      const transitSignIndex = SIGNS.indexOf(t.sign);
-      const houseNumber = ((transitSignIndex - lagnaSignIndex + 12) % 12) + 1;
-
-      // Find corresponding natal planet
-      const natalPlanet = astroContext.planets[t.planet as keyof typeof astroContext.planets];
-      const natalSign = natalPlanet ? natalPlanet.sign : "Unknown";
-
-      let impactType: "benefic" | "challenging" | "transformative" = "benefic";
-      let interpretation = "";
-
-      if (t.planet === "Jupiter") {
-        impactType = [1, 5, 9, 11].includes(houseNumber) ? "benefic" : "transformative";
-        interpretation = `Jupiter transiting your natal ${houseNumber}th House expands wisdom, fortune, and long-term opportunity in this life sector.`;
-      } else if (t.planet === "Saturn") {
-        impactType = [3, 6, 11].includes(houseNumber) ? "benefic" : "challenging";
-        interpretation = `Saturn transiting your natal ${houseNumber}th House demands discipline, patience, and structured consolidation of effort.`;
-      } else if (t.planet === "Rahu" || t.planet === "Ketu") {
-        impactType = "transformative";
-        interpretation = `${t.planet} activating your natal ${houseNumber}th House creates karmic shifts and sudden insights in its domain.`;
-      } else if (t.planet === "Mars") {
-        impactType = [3, 6, 10, 11].includes(houseNumber) ? "benefic" : "challenging";
-        interpretation = `Mars in your ${houseNumber}th House injects dynamic drive and assertive energy, requiring constructive outlets.`;
-      } else {
-        interpretation = `${t.planet} illuminating your ${houseNumber}th House highlights everyday focus, social interactions, and mental clarity.`;
-      }
-
-      return {
-        planet: t.planet,
-        transitSign: t.sign,
-        transitDegree: t.degree,
-        natalSign,
-        transitedHouse: houseNumber,
-        isRetrograde: t.retrograde,
-        aspectToNatal: t.sign === natalSign ? "Conjunction (0°)" : "Gochara Transit",
-        impactType,
-        interpretation,
-      };
-    });
-  }, [astroContext, transits]);
+  const profileOptions: ProfileOption[] = profiles.map((p) => ({
+    id: p.id,
+    name: p.name || p.profile_name || "Birth Chart",
+    relationship: p.relationship || (p.is_primary ? "Self" : "Family"),
+    dateOfBirth: p.date_of_birth || "",
+    birthPlace: p.birth_place || "",
+    isPrimary: p.is_primary,
+  }));
 
   return (
-    <PageWrapper title="Planetary Transit Tracker | AstroVerse AI" description="Real-time planetary transits integrated with your personal natal chart placements.">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+    <PageWrapper title="Transits & Timing Windows | AstroVerse AI" description="Real-time planetary transits analyzed against your natal Lagna and Moon with deterministic timing horizons.">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
-        {/* Header */}
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-gold/10 border border-gold/20 text-gold-light">
-            <Orbit className="w-3.5 h-3.5" />
-            Live Celestial Transits (Gochara)
-          </div>
-          <h1 className="text-3xl sm:text-5xl font-extrabold text-gradient-gold" style={{ fontFamily: "var(--font-outfit)" }}>
-            Planetary Transit Tracker
-          </h1>
-          <p className="text-sm sm:text-base text-white/60 max-w-2xl mx-auto">
-            Observe the current movements of the Grahas across the sidereal zodiac and their direct gravitational influence on your natal birth chart.
-          </p>
-        </div>
-
-        {/* Tab Selector & Controls Bar */}
-        <div className="glass rounded-2xl p-4 sm:p-6 border border-white/5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 shadow-xl">
-          {/* Segmented Tab */}
-          <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/5 border border-white/10 text-xs">
-            <button
-              onClick={() => setActiveTab("personal")}
-              className={`py-2 px-4 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                activeTab === "personal"
-                  ? "bg-gold/20 text-gold-light border border-gold/40 shadow-sm"
-                  : "text-white/60 hover:text-white"
-              }`}
-            >
-              <User className="w-3.5 h-3.5" />
-              Personal Transits
-            </button>
-            <button
-              onClick={() => setActiveTab("global")}
-              className={`py-2 px-4 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                activeTab === "global"
-                  ? "bg-gold/20 text-gold-light border border-gold/40 shadow-sm"
-                  : "text-white/60 hover:text-white"
-              }`}
-            >
+        {/* Header & Profile Switcher */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-white/10 pb-6">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-gold/10 border border-gold/20 text-gold-light mb-2">
               <Orbit className="w-3.5 h-3.5" />
-              Global Celestial Sky
-            </button>
+              Gochara Ephemeris Timing Engine
+            </div>
+            <h1 className="text-2xl sm:text-4xl font-extrabold text-white" style={{ fontFamily: "var(--font-outfit)" }}>
+              Planetary Transits &amp; Timing Windows
+            </h1>
+            <p className="text-xs sm:text-sm text-white/60 mt-1">
+              Active planetary motions computed from Swiss Ephemeris against {activeRawProfile?.name || userName}&apos;s natal Lagna ({canonicalContext?.angles.ascendant.sign || "—"}).
+            </p>
           </div>
 
-          {/* Date Picker & Profile Switcher */}
           <div className="flex flex-wrap items-center gap-3">
-            {activeTab === "personal" && profileOptions.length > 0 && (
+            {profileOptions.length > 0 && (
               <ProfileSwitcher
                 profiles={profileOptions}
                 activeProfileId={activeProfileId}
-                onSelectProfile={setActiveProfileId}
+                onSelectProfile={(id) => setActiveProfileId(id)}
               />
             )}
-
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white">
+              <Calendar className="w-3.5 h-3.5 text-gold" />
               <Input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="h-10 bg-white/5 border-white/10 text-white rounded-lg text-xs"
+                className="bg-transparent border-0 text-white text-xs p-0 h-auto focus-visible:ring-0 cursor-pointer"
               />
             </div>
           </div>
         </div>
 
-        {/* Loading / Error States */}
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+          {[
+            { id: "timeline", label: "Multi-Horizon Timing Windows", icon: Clock },
+            { id: "planets", label: "Planetary Explorer", icon: Orbit },
+            { id: "global", label: "Global Ephemeris Positions", icon: Compass },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as "timeline" | "planets" | "global")}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer",
+                  activeTab === tab.id
+                    ? "bg-gold text-black font-bold shadow-md shadow-gold/20"
+                    : "bg-white/5 text-white/60 hover:text-white hover:bg-white/10"
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
         {loading ? (
-          <div className="glass rounded-2xl p-16 border border-white/5 text-center space-y-4">
-            <Loader2 className="w-8 h-8 text-gold animate-spin mx-auto" />
-            <p className="text-sm font-semibold text-white">Computing planetary transit coordinates...</p>
+          <div className="py-20 flex flex-col items-center justify-center space-y-3">
+            <Loader2 className="w-8 h-8 animate-spin text-gold" />
+            <p className="text-xs text-white/60">Calculating celestial ephemeris coordinates...</p>
           </div>
-        ) : error ? (
-          <div className="glass rounded-2xl p-8 border border-red-500/20 text-center space-y-3 bg-red-500/5">
-            <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
-            <p className="text-sm text-red-400">{error}</p>
+        ) : !canonicalContext ? (
+          <div className="p-8 text-center glass rounded-2xl border border-white/10 space-y-3">
+            <User className="w-8 h-8 text-gold mx-auto" />
+            <h3 className="text-base font-bold text-white">No Birth Profile Selected</h3>
+            <p className="text-xs text-white/60 max-w-md mx-auto">
+              Please complete onboarding or select a birth profile to calculate personalized Gochara transits against your natal chart.
+            </p>
           </div>
         ) : (
           <>
-            {/* PERSONAL TRANSITS VIEW */}
-            {activeTab === "personal" && (
-              <div className="space-y-6 animate-fade-in">
-                {!astroContext ? (
-                  <div className="glass rounded-2xl p-12 border border-white/5 text-center space-y-3">
-                    <Compass className="w-10 h-10 text-gold/40 mx-auto" />
-                    <h3 className="text-base font-bold text-white">Configure Your Natal Chart</h3>
-                    <p className="text-xs text-white/50 max-w-md mx-auto">
-                      Personal transit analysis requires your birth details to map real-time planetary transits against your 12 Bhava (houses).
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+            {/* TAB 1: MULTI-HORIZON TIMING TIMELINE */}
+            {activeTab === "timeline" && (
+              <div className="space-y-6">
+                {/* Horizon Selector */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+                  {timelineWindows.map((tw) => (
+                    <button
+                      key={tw.horizon}
+                      type="button"
+                      onClick={() => setSelectedHorizon(tw.horizon)}
+                      className={cn(
+                        "whitespace-nowrap px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border",
+                        selectedHorizon === tw.horizon
+                          ? "bg-white/15 border-gold text-gold shadow-sm font-bold"
+                          : "bg-white/5 border-white/5 text-white/60 hover:text-white hover:border-white/20"
+                      )}
+                    >
+                      {tw.horizonLabel}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Active Window Detail Card */}
+                {activeTimelineItem && (
+                  <div className="glass rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6 animate-fade-in">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
                       <div>
-                        <h2 className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-outfit)" }}>
-                          Personalized Gochara Influences for {astroContext.profile.name}
+                        <span className="text-[10px] font-bold tracking-wider text-gold uppercase">
+                          {activeTimelineItem.horizonLabel} ({activeTimelineItem.startDate} to {activeTimelineItem.endDate})
+                        </span>
+                        <h2 className="text-xl sm:text-2xl font-bold text-white mt-0.5" style={{ fontFamily: "var(--font-outfit)" }}>
+                          {activeTimelineItem.theme}
                         </h2>
-                        <p className="text-xs text-white/50">
-                          Natal Ascendant: <strong className="text-gold-light">{astroContext.ascendant.sign}</strong> • Moon Sign: <strong className="text-purple-light">{astroContext.moon.sign}</strong>
-                        </p>
                       </div>
-                      <span className="text-xs text-white/40 font-mono">Date: {date}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-3 py-1 rounded-full bg-gold/10 text-gold-light border border-gold/20 font-semibold">
+                          House {activeTimelineItem.activatedHouse} Activated
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {personalImpacts.map((imp) => (
-                        <div
-                          key={imp.planet}
-                          className="glass rounded-xl p-5 border border-white/5 hover:border-gold/30 transition-all space-y-3"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2.5">
-                              <span className="text-xl font-bold text-gold font-mono">{PLANET_SYMBOLS[imp.planet] || "●"}</span>
-                              <div>
-                                <h3 className="text-sm font-bold text-white">{imp.planet}</h3>
-                                <p className="text-[11px] text-white/50 font-mono">
-                                  Currently {imp.transitDegree.toFixed(1)}° in {imp.transitSign} {imp.isRetrograde && "(Retrograde)"}
-                                </p>
-                              </div>
-                            </div>
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-gold/10 text-gold-light border border-gold/20">
-                              House {imp.transitedHouse}
-                            </span>
-                          </div>
-
-                          <p className="text-xs text-white/70 leading-relaxed">
-                            {imp.interpretation}
-                          </p>
-
-                          <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] text-white/40">
-                            <span>Natal Placement: {imp.natalSign}</span>
-                            <span className="capitalize text-emerald-400 font-medium">{imp.aspectToNatal}</span>
-                          </div>
+                    {/* Supportive vs Challenging Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="p-5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-2">
+                        <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-wider">
+                          <CheckCircle2 className="w-4 h-4" />
+                          Supportive Opportunity Potential
                         </div>
-                      ))}
+                        <p className="text-xs sm:text-sm text-white/80 leading-relaxed">
+                          {activeTimelineItem.supportivePotential}
+                        </p>
+                      </div>
+
+                      <div className="p-5 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2">
+                        <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-wider">
+                          <Info className="w-4 h-4" />
+                          Areas Requiring Caution &amp; Balance
+                        </div>
+                        <p className="text-xs sm:text-sm text-white/80 leading-relaxed">
+                          {activeTimelineItem.challengingPotential}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Precaution & Traditional Basis */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                      <div className="md:col-span-2 p-4 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                        <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Practical Action &amp; Precaution</span>
+                        <p className="text-xs text-white/80">{activeTimelineItem.precautions}</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                        <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Astrological Basis</span>
+                        <p className="text-[11px] text-white/60">{activeTimelineItem.traditionalBasis}</p>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* GLOBAL TRANSITS VIEW */}
-            {activeTab === "global" && (
-              <div className="glass rounded-2xl border border-white/5 overflow-hidden animate-fade-in">
-                <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-white">
-                    Universal Sidereal Positions — {new Date(date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
-                  </h3>
-                  <span className="text-xs text-white/40">Lahiri Ayanamsa</span>
+            {/* TAB 2: PLANETARY EXPLORER */}
+            {activeTab === "planets" && (
+              <div className="space-y-6">
+                {/* Planet Selector */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+                  {["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"].map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setSelectedPlanet(p)}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border",
+                        selectedPlanet === p
+                          ? "bg-gold text-black border-gold font-bold shadow-md"
+                          : "bg-white/5 border-white/5 text-white/70 hover:text-white hover:border-white/20"
+                      )}
+                    >
+                      <span className="font-mono text-sm">{PLANET_SYMBOLS[p]}</span>
+                      {p}
+                    </button>
+                  ))}
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-white/10 text-[11px] text-white/40">
-                        <th className="px-6 py-3">Planet</th>
-                        <th className="px-4 py-3">Sign (Rashi)</th>
-                        <th className="px-4 py-3">Degrees</th>
-                        <th className="px-4 py-3">Nakshatra</th>
-                        <th className="px-4 py-3">Motion</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5 text-white/80">
-                      {transits.map((p) => (
-                        <tr key={p.planet} className="hover:bg-white/5 transition-colors">
-                          <td className="px-6 py-3.5 font-bold text-white flex items-center gap-2">
-                            <span className="text-gold font-mono text-base">{PLANET_SYMBOLS[p.planet] || "●"}</span>
-                            {p.planet}
-                          </td>
-                          <td className="px-4 py-3.5 text-gold-light font-medium">{p.sign}</td>
-                          <td className="px-4 py-3.5 font-mono">{p.degree.toFixed(2)}°</td>
-                          <td className="px-4 py-3.5 text-white/60 capitalize">{p.speedCategory}</td>
-                          <td className="px-4 py-3.5">
-                            {p.retrograde ? (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                                Retrograde (R)
+
+                {/* Planet Explorer Card */}
+                {planetExplorerData && (
+                  <div className="glass rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6 animate-fade-in">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-gold/20 to-purple/30 border border-gold/30 flex items-center justify-center text-2xl text-gold font-mono">
+                          {planetExplorerData.symbol}
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-white" style={{ fontFamily: "var(--font-outfit)" }}>
+                            {planetExplorerData.planet} Detailed Planetary Analysis
+                          </h2>
+                          <p className="text-xs text-white/60">
+                            {planetExplorerData.strengthBreakdown.houseStrength} • Dignity: {planetExplorerData.strengthBreakdown.dignity}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-3 py-1 rounded bg-white/5 border border-white/10 text-white font-mono">
+                          Shadbala Strength: {planetExplorerData.strengthBreakdown.score}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                          <span className="text-[10px] font-bold text-gold uppercase tracking-wider">Natal Placement</span>
+                          <p className="text-xs text-white/80 leading-relaxed">
+                            {planetExplorerData.traditionalInterpretation.natalTheme}
+                          </p>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                          <span className="text-[10px] font-bold text-gold uppercase tracking-wider">Current Transit Gochara</span>
+                          <p className="text-xs text-white/80 leading-relaxed">
+                            {planetExplorerData.traditionalInterpretation.currentTransitTheme}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                          <span className="text-[10px] font-bold text-gold uppercase tracking-wider">Natural Karakatwas (Significations)</span>
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {planetExplorerData.karakatwas.map((k) => (
+                              <span key={k} className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-white/70 border border-white/5">
+                                {k}
                               </span>
-                            ) : (
-                              <span className="text-[10px] text-white/40">Direct</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                          <span className="text-[10px] font-bold text-gold uppercase tracking-wider">Prescribed Traditional Remedy</span>
+                          <p className="text-xs text-white/80 leading-relaxed">
+                            {planetExplorerData.traditionalInterpretation.prescribedRemedy}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 3: GLOBAL EPHEMERIS POSITIONS */}
+            {activeTab === "global" && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {Object.values(canonicalContext.planets).map((p) => (
+                  <div key={p.id} className="glass rounded-xl p-4 border border-white/5 space-y-2 hover:border-gold/30 transition-all">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base text-gold font-mono">{p.symbol}</span>
+                        <span className="text-sm font-bold text-white">{p.name}</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-white/60">
+                        House {p.house}
+                      </span>
+                    </div>
+                    <p className="text-xs text-white/70 font-mono">
+                      {p.sign} {p.degreeInSign}°{p.minuteInSign}&apos; ({p.nakshatra.name})
+                    </p>
+                    <div className="flex items-center justify-between text-[10px] text-white/40 pt-2 border-t border-white/5">
+                      <span>Dignity: {p.dignity}</span>
+                      <span>Strength: {p.strengthScore}%</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </>
         )}
-
       </div>
     </PageWrapper>
   );
