@@ -14,9 +14,9 @@ const MOCK_METRICS = [
 ];
 
 const MOCK_USERS_LIST = [
-  { email: "admin@astroverse.ai", role: "admin", name: "Admin User", created: "Jul 01, 2026" },
-  { email: "demo1@example.com", role: "user", name: "Demo User 1", created: "Jul 10, 2026" },
-  { email: "demo2@example.com", role: "user", name: "Demo User 2", created: "Jul 12, 2026" },
+  { email: "admin@astroverse.ai", role: "admin", name: "System Administrator", created: "Jul 01, 2026" },
+  { email: "member1@example.com", role: "user", name: "Premium Member", created: "Jul 10, 2026" },
+  { email: "member2@example.com", role: "user", name: "Standard Member", created: "Jul 12, 2026" },
 ];
 
 export default function AdminPage() {

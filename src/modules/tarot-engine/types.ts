@@ -9,6 +9,11 @@ export interface TarotCard {
   keywords: string[];
   element: 'fire' | 'water' | 'air' | 'earth' | null;
   zodiacCorrespondence: string | null;
+  image: string;
+  love?: string;
+  career?: string;
+  finance?: string;
+  spirituality?: string;
 }
 
 export interface SpreadPosition {

@@ -5,9 +5,9 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || proc
 
 const MOCK_USER = {
   id: "mock-user-uuid-12345",
-  email: "demo@example.com",
+  email: "user@example.com",
   user_metadata: {
-    name: "Demo User",
+    name: "User",
     role: "user",
   },
   app_metadata: {
@@ -42,7 +42,7 @@ class MockBrowserClient {
           ...MOCK_USER, 
           email, 
           user_metadata: { 
-            name: options?.data?.name || "Demo User", 
+            name: options?.data?.name || "User", 
             role: "user" 
           } 
         };

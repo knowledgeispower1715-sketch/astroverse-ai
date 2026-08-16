@@ -3,9 +3,9 @@ import { cookies } from "next/headers";
 
 const MOCK_USER = {
   id: "mock-user-uuid-12345",
-  email: "demo@example.com",
+  email: "user@example.com",
   user_metadata: {
-    name: "Demo User",
+    name: "User",
     role: "user",
   },
   app_metadata: {
@@ -45,7 +45,7 @@ export class MockSupabaseClient {
           ...MOCK_USER, 
           email, 
           user_metadata: { 
-            name: options?.data?.name || "Demo User", 
+            name: options?.data?.name || "User", 
             role: "user" 
           } 
         };
