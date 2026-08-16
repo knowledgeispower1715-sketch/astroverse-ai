@@ -1,9 +1,11 @@
 import { LocationResult } from "./types";
 
 export const WORLD_CITIES: LocationResult[] = [
+  // --- NORTH AMERICA ---
+  { id: "us-nyc", name: "New York", adminRegion: "New York", country: "United States", countryCode: "US", latitude: 40.7128, longitude: -74.0060, timezone: "America/New_York", formattedAddress: "New York, NY, USA" },
   // --- INDIA & SOUTH ASIA ---
-  { id: "in-jabalpur", name: "Jabalpur", adminRegion: "Madhya Pradesh", country: "India", countryCode: "IN", latitude: 23.1815, longitude: 79.9864, timezone: "Asia/Kolkata", formattedAddress: "Jabalpur, Madhya Pradesh, India" },
   { id: "in-delhi", name: "New Delhi", adminRegion: "Delhi", country: "India", countryCode: "IN", latitude: 28.6139, longitude: 77.2090, timezone: "Asia/Kolkata", formattedAddress: "New Delhi, Delhi, India" },
+  { id: "in-jabalpur", name: "Jabalpur", adminRegion: "Madhya Pradesh", country: "India", countryCode: "IN", latitude: 23.1815, longitude: 79.9864, timezone: "Asia/Kolkata", formattedAddress: "Jabalpur, Madhya Pradesh, India" },
   { id: "in-mumbai", name: "Mumbai", adminRegion: "Maharashtra", country: "India", countryCode: "IN", latitude: 19.0760, longitude: 72.8777, timezone: "Asia/Kolkata", formattedAddress: "Mumbai, Maharashtra, India" },
   { id: "in-bengaluru", name: "Bengaluru", adminRegion: "Karnataka", country: "India", countryCode: "IN", latitude: 12.9716, longitude: 77.5946, timezone: "Asia/Kolkata", formattedAddress: "Bengaluru, Karnataka, India" },
   { id: "in-kolkata", name: "Kolkata", adminRegion: "West Bengal", country: "India", countryCode: "IN", latitude: 22.5726, longitude: 88.3639, timezone: "Asia/Kolkata", formattedAddress: "Kolkata, West Bengal, India" },

@@ -61,7 +61,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const moonPhase = getMoonPhase();
   const zodiacSeason = getCurrentZodiacSeason();
-  const [userName, setUserName] = useState("Seeker");
+  const [userName, setUserName] = useState("User");
   const [profiles, setProfiles] = useState<RawBirthProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string>("");
   const [loadingUser, setLoadingUser] = useState(true);
@@ -72,7 +72,7 @@ export default function DashboardPage() {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const name = user.user_metadata?.name || user.email?.split("@")[0] || "Seeker";
+          const name = user.user_metadata?.name || user.email?.split("@")[0] || "User";
           setUserName(name);
 
           // Fetch all birth profiles owned by user

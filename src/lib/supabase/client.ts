@@ -5,9 +5,9 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || proc
 
 const MOCK_USER = {
   id: "mock-user-uuid-12345",
-  email: "testseeker@astroverse.ai",
+  email: "demo@example.com",
   user_metadata: {
-    name: "Cosmic Seeker",
+    name: "Demo User",
     role: "user",
   },
   app_metadata: {
@@ -42,7 +42,7 @@ class MockBrowserClient {
           ...MOCK_USER, 
           email, 
           user_metadata: { 
-            name: options?.data?.name || "Cosmic Seeker", 
+            name: options?.data?.name || "Demo User", 
             role: "user" 
           } 
         };
@@ -53,6 +53,15 @@ class MockBrowserClient {
           document.cookie = "sb-mock-session=; path=/; max-age=0;";
         }
         return { error: null };
+      },
+      signInWithOAuth: async () => {
+        if (typeof document !== "undefined") {
+          document.cookie = "sb-mock-session=active; path=/;";
+        }
+        if (typeof window !== "undefined") {
+          window.location.href = "/auth/callback?code=mock_code&next=/dashboard";
+        }
+        return { data: { provider: 'google', url: '/auth/callback?code=mock_code' }, error: null };
       }
     };
   }
@@ -61,10 +70,21 @@ class MockBrowserClient {
     return {
       select: () => ({
         eq: () => ({
-          order: () => Promise.resolve({ data: [], error: null }),
+          order: () => ({
+            limit: () => ({
+              maybeSingle: () => Promise.resolve({ data: null, error: null }),
+            }),
+            maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          }),
           single: () => Promise.resolve({ data: {}, error: null })
         }),
         order: () => Promise.resolve({ data: [], error: null })
+      }),
+      upsert: () => Promise.resolve({ data: {}, error: null }),
+      insert: () => ({
+        select: () => ({
+          single: () => Promise.resolve({ data: {}, error: null })
+        })
       })
     };
   }

@@ -87,7 +87,7 @@ export function GlobalLocationPicker({ value, onChange }: GlobalLocationPickerPr
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
           <Input
             type="text"
-            placeholder="Search worldwide city (e.g. Jabalpur, New York, London, Tokyo, Dubai)..."
+            placeholder="Search worldwide city (e.g. New York, London, Tokyo, Dubai, Paris)..."
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);

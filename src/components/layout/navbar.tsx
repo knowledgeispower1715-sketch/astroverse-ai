@@ -37,7 +37,7 @@ export function Navbar() {
         const supabase = createClient();
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (authUser) {
-          const name = authUser.user_metadata?.name || authUser.email?.split("@")[0] || "Seeker";
+          const name = authUser.user_metadata?.name || authUser.email?.split("@")[0] || "User";
           const initial = name.charAt(0).toUpperCase();
           setUser({ name, email: authUser.email, initial });
         } else {

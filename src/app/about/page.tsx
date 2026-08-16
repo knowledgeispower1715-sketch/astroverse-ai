@@ -42,7 +42,7 @@ export default function AboutPage() {
             className="text-base sm:text-lg max-w-3xl mx-auto leading-relaxed"
             style={{ color: "var(--text-secondary)" }}
           >
-            AstroVerse AI was founded to bridge the gap between ancient planetary wisdom and modern computing. By digitizing traditional Vedic, Western, and Chinese calculation engines, we offer seekers a precise and secure dashboard to align their lives with the rhythms of the cosmos.
+            AstroVerse AI was founded to bridge the gap between ancient planetary wisdom and modern computing. By digitizing traditional Vedic, Western, and Chinese calculation engines, we offer users a precise and secure dashboard to align their lives with the rhythms of the cosmos.
           </p>
         </div>
 
@@ -81,7 +81,7 @@ export default function AboutPage() {
             </p>
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold" style={{ background: "rgba(212, 175, 55, 0.05)", border: "1px solid rgba(212, 175, 55, 0.15)", color: "var(--gold-light)" }}>
               <Award className="w-4 h-4" />
-              Trusted by 500,000+ Cosmic Seekers
+              Trusted by 500,000+ Cosmic Users Worldwide
             </div>
           </div>
         </div>

@@ -146,7 +146,7 @@ export default function KundliPage() {
 
           if (profile && profile.date_of_birth) {
             setFormData({
-              name: profile.name || user.user_metadata?.name || "Seeker",
+              name: profile.name || user.user_metadata?.name || "User",
               dob: profile.date_of_birth,
               time: profile.time_of_birth ? profile.time_of_birth.slice(0, 5) : "12:00",
               place: profile.birth_place || "New Delhi, India",

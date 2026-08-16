@@ -8,15 +8,15 @@ import { AnimatedCard } from "@/components/shared/animated-card";
 import { createClient } from "@/lib/supabase/client";
 
 const MOCK_METRICS = [
-  { label: "Total Registered Seekers", value: "1,248", icon: Users, color: "text-gold" },
+  { label: "Total Registered Users", value: "1,248", icon: Users, color: "text-gold" },
   { label: "Calculations Processed", value: "14,890", icon: Database, color: "text-purple-light" },
   { label: "System Health Status", value: "Optimal", icon: Shield, color: "text-green-400" },
 ];
 
 const MOCK_USERS_LIST = [
-  { email: "aria.nightshade@astroverse.ai", role: "admin", name: "Aria Nightshade", created: "Jul 01, 2026" },
-  { email: "marcus.chen@example.com", role: "user", name: "Marcus Chen", created: "Jul 10, 2026" },
-  { email: "luna.silveira@example.com", role: "user", name: "Luna Silveira", created: "Jul 12, 2026" },
+  { email: "admin@astroverse.ai", role: "admin", name: "Admin User", created: "Jul 01, 2026" },
+  { email: "demo1@example.com", role: "user", name: "Demo User 1", created: "Jul 10, 2026" },
+  { email: "demo2@example.com", role: "user", name: "Demo User 2", created: "Jul 12, 2026" },
 ];
 
 export default function AdminPage() {
@@ -79,7 +79,7 @@ export default function AdminPage() {
 
         {/* Users Table */}
         <div className="glass rounded-2xl p-6 border border-white/5">
-          <h3 className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: "var(--text-muted)" }}>Seeker Accounts List</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: "var(--text-muted)" }}>User Accounts List</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>

@@ -5,9 +5,13 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const dateStr = searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
-    const latStr = searchParams.get("lat") ?? "23.1765";
-    const lonStr = searchParams.get("lon") ?? "79.9554";
-    const tzStr = searchParams.get("tz") ?? "5.5";
+    const latStr = searchParams.get("lat");
+    const lonStr = searchParams.get("lon");
+    const tzStr = searchParams.get("tz") ?? "0";
+
+    if (!latStr || !lonStr) {
+      return NextResponse.json({ error: "Latitude and longitude are required. Please select a location." }, { status: 400 });
+    }
 
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) {

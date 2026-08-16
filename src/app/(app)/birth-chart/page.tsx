@@ -141,7 +141,7 @@ export default function BirthChartPage() {
                 <Input
                   value={formData.name}
                   onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Aryan Sharma"
+                  placeholder="e.g. User Name"
                   className="h-10 bg-white/5 border-white/10 text-white rounded-lg focus:border-gold/50"
                   required
                 />

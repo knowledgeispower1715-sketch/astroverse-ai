@@ -18,7 +18,7 @@ export default function CommunityPage() {
           Cosmic Community
         </h1>
         <p className="text-sm sm:text-base leading-relaxed max-w-xl mx-auto" style={{ color: "var(--text-secondary)" }}>
-          Connect with other seekers, discuss planetary ingresses, and share chart readings. Our community forums are opening soon.
+          Connect with other users, discuss planetary ingresses, and share chart readings. Our community forums are opening soon.
         </p>
       </div>
     </PageWrapper>

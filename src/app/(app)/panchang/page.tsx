@@ -12,11 +12,11 @@ import type { PanchangData } from "@/modules/prediction-engine";
 
 export default function PanchangPage() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [locationName, setLocationName] = useState("Jabalpur, Madhya Pradesh, India");
-  const [country, setCountry] = useState("India");
-  const [lat, setLat] = useState(23.1815);
-  const [lon, setLon] = useState(79.9864);
-  const [tz, setTz] = useState("Asia/Kolkata");
+  const [locationName, setLocationName] = useState("");
+  const [country, setCountry] = useState("");
+  const [lat, setLat] = useState(0);
+  const [lon, setLon] = useState(0);
+  const [tz, setTz] = useState("UTC");
   const [panchang, setPanchang] = useState<PanchangData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,9 +39,9 @@ export default function PanchangPage() {
           if (profile && profile.birth_place) {
             setLocationName(profile.birth_place);
             setCountry(profile.country || "");
-            setLat(Number(profile.latitude) || 23.1815);
-            setLon(Number(profile.longitude) || 79.9864);
-            setTz(profile.timezone || "Asia/Kolkata");
+            setLat(Number(profile.latitude) || 0);
+            setLon(Number(profile.longitude) || 0);
+            setTz(profile.timezone || "UTC");
           }
         }
       } catch (err) {

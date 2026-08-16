@@ -51,7 +51,7 @@ export default function TransitPage() {
   // User birth profile state
   const [profiles, setProfiles] = useState<RawBirthProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string>("");
-  const [userName, setUserName] = useState("Seeker");
+  const [userName, setUserName] = useState("User");
 
   useEffect(() => {
     async function loadUserData() {
@@ -59,7 +59,7 @@ export default function TransitPage() {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          setUserName(user.user_metadata?.name || "Seeker");
+          setUserName(user.user_metadata?.name || "User");
           const { data: rawProfiles } = await supabase
             .from("birth_profiles")
             .select("*")

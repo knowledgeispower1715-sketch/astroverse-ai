@@ -168,7 +168,7 @@ export default function OnboardingPage() {
                 <label className="text-xs font-semibold text-white/70 block">Full or Preferred Name</label>
                 <Input
                   type="text"
-                  placeholder="e.g. Aryan Tiwari"
+                  placeholder="e.g. User Name"
                   value={form.displayName}
                   onChange={(e) => setForm({ ...form, displayName: e.target.value })}
                   className="h-12 bg-white/5 border-white/10 text-white rounded-lg focus:border-gold/50 text-base"

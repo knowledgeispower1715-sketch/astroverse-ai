@@ -16,7 +16,7 @@ export function TestimonialsSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader
           title="What the Stars Say About Us"
-          subtitle="Hear from astrologers and cosmic seekers who have transformed their practice with AstroVerse AI."
+          subtitle="Hear from astrologers and cosmic users who have transformed their practice with AstroVerse AI."
         />
 
         <motion.div

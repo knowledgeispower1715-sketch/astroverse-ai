@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 const PLANS = [
   {
-    name: "Cosmic Seeker",
+    name: "Cosmic User",
     price: "Free",
     desc: "Essential features for beginners to explore basic parameters.",
     features: [

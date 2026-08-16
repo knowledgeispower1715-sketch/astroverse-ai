@@ -3,9 +3,9 @@ import { cookies } from "next/headers";
 
 const MOCK_USER = {
   id: "mock-user-uuid-12345",
-  email: "testseeker@astroverse.ai",
+  email: "demo@example.com",
   user_metadata: {
-    name: "Cosmic Seeker",
+    name: "Demo User",
     role: "user",
   },
   app_metadata: {
@@ -45,7 +45,7 @@ export class MockSupabaseClient {
           ...MOCK_USER, 
           email, 
           user_metadata: { 
-            name: options?.data?.name || "Cosmic Seeker", 
+            name: options?.data?.name || "Demo User", 
             role: "user" 
           } 
         };
@@ -60,6 +60,20 @@ export class MockSupabaseClient {
       },
       updateUser: async () => {
         return { error: null };
+      },
+      signInWithOAuth: async () => {
+        return { data: { provider: 'google', url: 'http://localhost:3000/auth/callback' }, error: null };
+      },
+      verifyOtp: async () => {
+        this.cookieStore.set("sb-mock-session", "active", { path: "/" });
+        return { data: { user: MOCK_USER }, error: null };
+      },
+      signInWithOtp: async () => {
+        return { data: {}, error: null };
+      },
+      exchangeCodeForSession: async () => {
+        this.cookieStore.set("sb-mock-session", "active", { path: "/" });
+        return { data: { user: MOCK_USER, session: { access_token: "mock-token" } }, error: null };
       }
     };
   }
@@ -100,7 +114,7 @@ export class MockSupabaseClient {
 
   private getMockTableRecord(table: string) {
     if (table === "profiles") {
-      return { id: MOCK_USER.id, name: "Cosmic Seeker", email: MOCK_USER.email };
+      return { id: MOCK_USER.id, name: "Demo User", email: MOCK_USER.email };
     }
     if (table === "settings") {
       return { 

@@ -12,7 +12,7 @@ const BLOG_DETAILS: Record<string, { title: string; date: string; author: string
   "understanding-saturn-return": {
     title: "Understanding Your Saturn Return",
     date: "Jul 15, 2026",
-    author: "Aria Nightshade",
+    author: "AstroVerse Editorial",
     category: "Transit",
     content: [
       "The Saturn return is one of the most critical landmarks in a person's astrological development. Occurring roughly every 29.5 years, it marks the moment Saturn returns to the exact degree and sign it occupied at the time of your birth.",
@@ -23,7 +23,7 @@ const BLOG_DETAILS: Record<string, { title: string; date: string; author: string
   "introduction-to-nakshatras": {
     title: "Introduction to the 27 Nakshatras",
     date: "Jul 10, 2026",
-    author: "Marcus Chen",
+    author: "AstroVerse Editorial",
     category: "Vedic",
     content: [
       "While Western tropical astrology divides the sky into 12 signs based on the sun's equinox path, Vedic sidereal astrology integrates the Moon's daily progression through 27 distinct sectors called Nakshatras (lunar mansions).",
@@ -34,7 +34,7 @@ const BLOG_DETAILS: Record<string, { title: string; date: string; author: string
   "mercury-retrograde-survival-guide": {
     title: "Mercury Retrograde Survival Guide",
     date: "Jul 05, 2026",
-    author: "Luna Silveira",
+    author: "AstroVerse Editorial",
     category: "Guide",
     content: [
       "Few astrological phenomena cause as much anxiety as Mercury Retrograde. Occurring 3 to 4 times a year, it is the apparent backward motion of the planet governing intellect, communication, and devices.",
@@ -45,7 +45,7 @@ const BLOG_DETAILS: Record<string, { title: string; date: string; author: string
   "synastry-vs-composite-charts": {
     title: "Synastry vs. Composite Charts",
     date: "Jun 28, 2026",
-    author: "Aria Nightshade",
+    author: "AstroVerse Editorial",
     category: "Western",
     content: [
       "When assessing relationships, astrologers use two distinct tools: Synastry (chart comparison) and Composite Charts (relationship midpoint charts).",
