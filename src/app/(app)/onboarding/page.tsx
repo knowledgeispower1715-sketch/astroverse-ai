@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { GlobalLocationPicker } from "@/components/location/global-location-picker";
-import { WORLD_CITIES } from "@/modules/location-engine";
+import { searchLocations } from "@/modules/location-engine";
 
 interface FormData {
   displayName: string;
@@ -20,6 +20,8 @@ interface FormData {
   latitude: number;
   longitude: number;
   timezone: string;
+  locationId?: string;
+  geonameId?: number;
 }
 
 export default function OnboardingPage() {
@@ -63,19 +65,18 @@ export default function OnboardingPage() {
       let lng = form.longitude;
       let tz = form.timezone || "UTC";
       let ctry = form.country || "";
+      let locId = form.locationId;
+      let geoId = form.geonameId;
 
-      if (!lat && !lng && form.birthPlace) {
-        const queryLower = form.birthPlace.toLowerCase();
-        const found = WORLD_CITIES.find(
-          (c) =>
-            queryLower.includes(c.name.toLowerCase()) ||
-            c.formattedAddress.toLowerCase().includes(queryLower)
-        );
-        if (found) {
-          lat = found.latitude;
-          lng = found.longitude;
-          tz = found.timezone;
-          ctry = found.country;
+      if ((!lat && !lng) && form.birthPlace) {
+        const found = await searchLocations(form.birthPlace, { limit: 1 });
+        if (found && found.length > 0) {
+          lat = found[0].latitude;
+          lng = found[0].longitude;
+          tz = found[0].timezone;
+          ctry = found[0].country;
+          locId = found[0].id;
+          geoId = found[0].geonameId;
         }
       }
 
@@ -85,6 +86,7 @@ export default function OnboardingPage() {
         email: user.email,
         display_name: form.displayName,
         full_name: form.displayName,
+        onboarding_completed: true,
         updated_at: new Date().toISOString(),
       });
 
@@ -92,6 +94,8 @@ export default function OnboardingPage() {
       const { error: birthError } = await supabase.from("birth_profiles").upsert({
         user_id: user.id,
         name: form.displayName,
+        profile_name: "My Birth Chart",
+        relationship: "Self",
         date_of_birth: form.birthDate,
         time_of_birth: form.timePrecision === "unknown" ? "12:00:00" : `${form.birthTime}:00`,
         birth_place: form.birthPlace,
@@ -99,9 +103,12 @@ export default function OnboardingPage() {
         latitude: lat,
         longitude: lng,
         timezone: tz,
+        iana_timezone: tz,
         is_primary: true,
         is_approximate_time: form.timePrecision === "approximate",
         is_unknown_time: form.timePrecision === "unknown",
+        location_id: locId && !locId.startsWith("geo-") ? locId : undefined,
+        geoname_id: geoId,
         updated_at: new Date().toISOString(),
       });
 
@@ -133,25 +140,14 @@ export default function OnboardingPage() {
             Welcome to AstroVerse AI
           </h1>
           <p className="text-sm text-white/60">
-            Let us align the planets with your exact moment and location of birth.
+            Let us align the planets with your exact moment and worldwide location of birth.
           </p>
         </div>
 
         {/* Multi-step Card */}
-        <div className="glass rounded-2xl p-6 sm:p-8 border border-white/10 shadow-2xl space-y-6">
-          {/* Progress Indicators */}
-          <div className="grid grid-cols-3 gap-2">
-            {[1, 2, 3].map((s) => (
-              <div
-                key={s}
-                className={`h-1.5 rounded-full transition-all duration-500 ${
-                  s <= step ? "bg-gradient-to-r from-gold to-purple-light" : "bg-white/10"
-                }`}
-              />
-            ))}
-          </div>
-
-          {/* STEP 1: Identity */}
+        <div className="glass rounded-2xl p-6 sm:p-8 border border-white/5 space-y-6">
+          
+          {/* STEP 1: Name */}
           {step === 1 && (
             <div className="space-y-5 animate-fade-in">
               <div className="space-y-1">
@@ -168,7 +164,7 @@ export default function OnboardingPage() {
                 <label className="text-xs font-semibold text-white/70 block">Full or Preferred Name</label>
                 <Input
                   type="text"
-                  placeholder="e.g. User Name"
+                  placeholder="Enter full name"
                   value={form.displayName}
                   onChange={(e) => setForm({ ...form, displayName: e.target.value })}
                   className="h-12 bg-white/5 border-white/10 text-white rounded-lg focus:border-gold/50 text-base"
@@ -182,7 +178,7 @@ export default function OnboardingPage() {
                 className="w-full h-12 rounded-lg font-semibold gap-2 cursor-pointer mt-4"
                 style={{ background: "var(--gradient-gold)", color: "var(--bg-primary)" }}
               >
-                Continue to Birth Date & Time
+                Continue to Birth Date &amp; Time
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -194,7 +190,7 @@ export default function OnboardingPage() {
               <div className="space-y-1">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-gold" />
-                  Date & Time of Birth
+                  Date &amp; Time of Birth
                 </h3>
                 <p className="text-xs text-white/50">
                   Used to determine your Sun, Moon, Ascendant (Lagna), and planetary degrees.
@@ -283,7 +279,7 @@ export default function OnboardingPage() {
               <div className="space-y-1">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-gold" />
-                  Birth Location & Timezone
+                  Birth Location &amp; Timezone
                 </h3>
                 <p className="text-xs text-white/50">
                   Calculates local sidereal time, geographical horizon, and exact Ascendant.
@@ -298,6 +294,8 @@ export default function OnboardingPage() {
                   latitude: form.latitude,
                   longitude: form.longitude,
                   timezone: form.timezone,
+                  locationId: form.locationId,
+                  geonameId: form.geonameId,
                 }}
                 onChange={(loc) => {
                   setForm((prev) => ({
@@ -307,6 +305,8 @@ export default function OnboardingPage() {
                     latitude: loc.latitude,
                     longitude: loc.longitude,
                     timezone: loc.timezone,
+                    locationId: loc.locationId,
+                    geonameId: loc.geonameId,
                   }));
                 }}
               />

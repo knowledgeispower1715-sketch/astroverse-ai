@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Calendar, Clock, Download, Save, AlertCircle } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import Link from "next/link";
+import { Calendar, Clock, Download, Save, AlertCircle, Sparkles, RefreshCw, Compass } from "lucide-react";
 import { PageWrapper } from "@/components/shared/page-wrapper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GlobalLocationPicker } from "@/components/location/global-location-picker";
+import { ProfileSwitcher, type ProfileOption } from "@/components/profile/profile-switcher";
 import { createClient } from "@/lib/supabase/client";
 
 interface CalculationItem {
@@ -51,6 +53,21 @@ interface ResultData {
   doshas: DoshaItem[];
   remedies: string[];
   gemstones: GemstoneItem[];
+}
+
+interface RawBirthProfile {
+  id: string;
+  name?: string;
+  profile_name?: string;
+  relationship?: string;
+  date_of_birth?: string;
+  time_of_birth?: string;
+  birth_place?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  timezone?: string;
+  is_primary?: boolean;
 }
 
 // South Indian style SVG chart render helper
@@ -115,58 +132,40 @@ const SVGChart = ({ title, planets }: { title: string; planets: Record<string, s
 );
 
 export default function KundliPage() {
+  const [profiles, setProfiles] = useState<RawBirthProfile[]>([]);
+  const [activeProfileId, setActiveProfileId] = useState<string>("");
+
   const [formData, setFormData] = useState({
     name: "",
     dob: "",
     time: "12:00",
     place: "",
     country: "",
-    latitude: 28.6139,
-    longitude: 77.2090,
-    timezone: "Asia/Kolkata",
+    latitude: 0,
+    longitude: 0,
+    timezone: "UTC",
   });
+
   const [status, setStatus] = useState<"idle" | "loading" | "calculated" | "error">("idle");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [exportStatus, setExportStatus] = useState<"idle" | "exporting" | "exported">("idle");
   const [resultData, setResultData] = useState<ResultData | null>(null);
 
-  useEffect(() => {
-    async function loadSavedProfile() {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: profile } = await supabase
-            .from("birth_profiles")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("is_primary", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+  // Compute profile options for switcher
+  const profileOptions = useMemo<ProfileOption[]>(() => {
+    return profiles.map((p) => ({
+      id: p.id,
+      name: p.name || p.profile_name || "Birth Chart",
+      relationship: p.relationship || (p.is_primary ? "Self" : "Family"),
+      birthPlace: p.birth_place || "Worldwide",
+      dateOfBirth: p.date_of_birth || "",
+      isPrimary: p.is_primary,
+    }));
+  }, [profiles]);
 
-          if (profile && profile.date_of_birth) {
-            setFormData({
-              name: profile.name || user.user_metadata?.name || "User",
-              dob: profile.date_of_birth,
-              time: profile.time_of_birth ? profile.time_of_birth.slice(0, 5) : "12:00",
-              place: profile.birth_place || "New Delhi, India",
-              country: profile.country || "India",
-              latitude: Number(profile.latitude) || 28.6139,
-              longitude: Number(profile.longitude) || 77.2090,
-              timezone: profile.timezone || "Asia/Kolkata",
-            });
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching birth profile:", err);
-      }
-    }
-    loadSavedProfile();
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name.trim() || !formData.dob || !formData.place.trim()) {
+  // Calculation handler
+  const calculateChart = useCallback(async (params: typeof formData) => {
+    if (!params.dob || !params.latitude || !params.longitude) {
       setStatus("error");
       return;
     }
@@ -177,14 +176,14 @@ export default function KundliPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          birthDate: formData.dob,
-          birthTime: formData.time || "12:00",
-          latitude: formData.latitude,
-          longitude: formData.longitude,
-          timezone: formData.timezone,
+          birthDate: params.dob,
+          birthTime: params.time || "12:00",
+          latitude: params.latitude,
+          longitude: params.longitude,
+          timezone: params.timezone || "UTC",
           system: "vedic",
-          houseSystem: "whole-sign"
-        })
+          houseSystem: "whole-sign",
+        }),
       });
 
       const body = await res.json();
@@ -194,9 +193,86 @@ export default function KundliPage() {
       } else {
         setStatus("error");
       }
-    } catch {
+    } catch (err) {
+      console.error("Kundli calculation error:", err);
       setStatus("error");
     }
+  }, []);
+
+  // Fetch all user birth profiles on mount
+  useEffect(() => {
+    async function loadSavedProfiles() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: rawProfiles } = await supabase
+            .from("birth_profiles")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("is_primary", { ascending: false });
+
+          if (rawProfiles && rawProfiles.length > 0) {
+            setProfiles(rawProfiles);
+            const primary = rawProfiles[0];
+            setActiveProfileId(primary.id);
+
+            const initialForm = {
+              name: primary.name || primary.profile_name || user.user_metadata?.name || user.email?.split("@")[0] || "User",
+              dob: primary.date_of_birth || "",
+              time: primary.time_of_birth ? primary.time_of_birth.slice(0, 5) : "12:00",
+              place: primary.birth_place || "",
+              country: primary.country || "",
+              latitude: Number(primary.latitude) || 0,
+              longitude: Number(primary.longitude) || 0,
+              timezone: primary.timezone || "UTC",
+            };
+            setFormData(initialForm);
+
+            // Auto-calculate if profile has valid coordinates and DOB
+            if (initialForm.dob && initialForm.latitude && initialForm.longitude) {
+              calculateChart(initialForm);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching birth profiles for kundli:", err);
+      }
+    }
+    loadSavedProfiles();
+  }, [calculateChart]);
+
+  // Handle switching profiles
+  const handleSelectProfile = (profileId: string) => {
+    setActiveProfileId(profileId);
+    const selected = profiles.find((p) => p.id === profileId);
+    if (selected) {
+      const nextForm = {
+        name: selected.name || selected.profile_name || "User",
+        dob: selected.date_of_birth || "",
+        time: selected.time_of_birth ? selected.time_of_birth.slice(0, 5) : "12:00",
+        place: selected.birth_place || "",
+        country: selected.country || "",
+        latitude: Number(selected.latitude) || 0,
+        longitude: Number(selected.longitude) || 0,
+        timezone: selected.timezone || "UTC",
+      };
+      setFormData(nextForm);
+      if (nextForm.dob && nextForm.latitude && nextForm.longitude) {
+        calculateChart(nextForm);
+      } else {
+        setStatus("idle");
+      }
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name.trim() || !formData.dob || !formData.place.trim() || !formData.latitude || !formData.longitude) {
+      setStatus("error");
+      return;
+    }
+    calculateChart(formData);
   };
 
   const handleSave = async () => {
@@ -212,10 +288,10 @@ export default function KundliPage() {
           birth_date: formData.dob,
           birth_time: formData.time,
           birth_place: formData.place,
-          latitude: 28.6139,
-          longitude: 77.2090,
-          timezone_id: "Asia/Kolkata"
-        })
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          timezone_id: formData.timezone,
+        }),
       });
 
       const birthBody = await birthRes.json();
@@ -231,8 +307,8 @@ export default function KundliPage() {
           chart_type: "vedic",
           placements: resultData.positions,
           houses: resultData.houses,
-          aspects: resultData.aspects
-        })
+          aspects: resultData.aspects,
+        }),
       });
 
       if (!chartRes.ok) throw new Error();
@@ -257,14 +333,14 @@ export default function KundliPage() {
   const mapPlacementsToGrid = (positions: CalculationItem[], ascendantSign: string) => {
     const grid: Record<string, string[]> = {
       "1": [], "2": [], "3": [], "4": [], "5": [], "6": [],
-      "7": [], "8": [], "9": [], "10": [], "11": [], "12": []
+      "7": [], "8": [], "9": [], "10": [], "11": [], "12": [],
     };
 
     const signIndexMap: Record<string, string> = {
       "Taurus": "1", "Gemini": "2", "Cancer": "3", "Leo": "4", "Virgo": "5", "Libra": "6",
       "Scorpio": "7", "Sagittarius": "8", "Capricorn": "9", "Aquarius": "10", "Pisces": "11", "Aries": "12",
       "Vrishabha": "1", "Mithuna": "2", "Karka": "3", "Simha": "4", "Kanya": "5", "Tula": "6",
-      "Vrishchika": "7", "Dhanu": "8", "Makara": "9", "Kumbha": "10", "Meena": "11", "Mesha": "12"
+      "Vrishchika": "7", "Dhanu": "8", "Makara": "9", "Kumbha": "10", "Meena": "11", "Mesha": "12",
     };
 
     const ascBox = signIndexMap[ascendantSign];
@@ -277,7 +353,8 @@ export default function KundliPage() {
       if (box) {
         const abb: Record<string, string> = {
           "Sun": "Su", "Moon": "Mo", "Mercury": "Me", "Venus": "Ve",
-          "Mars": "Ma", "Jupiter": "Ju", "Saturn": "Sa", "Uranus": "Ur", "Neptune": "Ne", "Pluto": "Pl"
+          "Mars": "Ma", "Jupiter": "Ju", "Saturn": "Sa", "Uranus": "Ur", "Neptune": "Ne", "Pluto": "Pl",
+          "Rahu": "Ra", "Ketu": "Ke",
         };
         grid[box].push(abb[p.planet] || p.planet.slice(0, 2));
       }
@@ -289,14 +366,14 @@ export default function KundliPage() {
   const mapNavamsaToGrid = (navamsaMap: Record<string, { sign: string; degree: number }>) => {
     const grid: Record<string, string[]> = {
       "1": [], "2": [], "3": [], "4": [], "5": [], "6": [],
-      "7": [], "8": [], "9": [], "10": [], "11": [], "12": []
+      "7": [], "8": [], "9": [], "10": [], "11": [], "12": [],
     };
 
     const signIndexMap: Record<string, string> = {
       "Vrishabha": "1", "Mithuna": "2", "Karka": "3", "Simha": "4", "Kanya": "5", "Tula": "6",
       "Vrishchika": "7", "Dhanu": "8", "Makara": "9", "Kumbha": "10", "Meena": "11", "Mesha": "12",
       "Taurus": "1", "Gemini": "2", "Cancer": "3", "Leo": "4", "Virgo": "5", "Libra": "6",
-      "Scorpio": "7", "Sagittarius": "8", "Capricorn": "9", "Aquarius": "10", "Pisces": "11", "Aries": "12"
+      "Scorpio": "7", "Sagittarius": "8", "Capricorn": "9", "Aquarius": "10", "Pisces": "11", "Aries": "12",
     };
 
     Object.entries(navamsaMap).forEach(([planet, data]) => {
@@ -304,7 +381,8 @@ export default function KundliPage() {
       if (box) {
         const abb: Record<string, string> = {
           "Sun": "Su", "Moon": "Mo", "Mercury": "Me", "Venus": "Ve",
-          "Mars": "Ma", "Jupiter": "Ju", "Saturn": "Sa", "Ascendant": "ASC"
+          "Mars": "Ma", "Jupiter": "Ju", "Saturn": "Sa", "Ascendant": "ASC",
+          "Rahu": "Ra", "Ketu": "Ke",
         };
         grid[box].push(abb[planet] || planet.slice(0, 2));
       }
@@ -314,25 +392,48 @@ export default function KundliPage() {
   };
 
   return (
-    <PageWrapper>
+    <PageWrapper title="Vedic Kundli Generator | AstroVerse AI" description="Generate authentic Vedic birth charts with planetary placements and D1/D9.">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 print:p-0">
-        <div className="text-center mb-12 print:hidden">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-gradient-gold mb-4" style={{ fontFamily: "var(--font-outfit)" }}>
-            Vedic Kundli Generator
-          </h1>
-          <p className="text-base sm:text-lg max-w-2xl mx-auto" style={{ color: "var(--text-secondary)" }}>
-            Input birth parameters to compute detailed planetary positions, Lagna charts, Vimshottari Dashas, and prescribed remedies.
-          </p>
+        
+        {/* Header with Profile Switcher */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 print:hidden">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-gradient-gold" style={{ fontFamily: "var(--font-outfit)" }}>
+                Vedic Kundli Generator
+              </h1>
+              {profileOptions.length > 0 && (
+                <ProfileSwitcher
+                  profiles={profileOptions}
+                  activeProfileId={activeProfileId}
+                  onSelectProfile={handleSelectProfile}
+                />
+              )}
+            </div>
+            <p className="text-xs sm:text-sm text-white/60 mt-1">
+              Deterministic astronomical calculation based on Vedic Lahiri Ayanamsa and authentic planetary positions.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link href="/onboarding">
+              <Button variant="outline" size="sm" className="text-xs border-gold/30 text-gold-light hover:bg-gold/10 gap-1.5 cursor-pointer">
+                <Compass className="w-3.5 h-3.5" />
+                Add New Chart Profile
+              </Button>
+            </Link>
+          </div>
         </div>
 
+        {/* Input Form if not calculated or user wishes to edit */}
         {status !== "calculated" && (
-          <div className="max-w-xl mx-auto print:hidden">
+          <div className="max-w-xl mx-auto print:hidden animate-fade-in">
             <form onSubmit={handleSubmit} className="glass rounded-2xl p-8 border border-white/5 space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>Name *</label>
+                <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>Person Name *</label>
                 <Input
                   type="text"
-                  placeholder="Enter name"
+                  placeholder="Enter full name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="h-12 bg-white/5 border-white/10 text-white rounded-lg"
@@ -398,7 +499,7 @@ export default function KundliPage() {
               {status === "error" && (
                 <div className="flex items-center gap-2 text-xs text-red-500 font-medium bg-red-500/10 p-3 rounded-lg border border-red-500/20">
                   <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>Please fill in all required fields.</span>
+                  <span>Please enter all required fields including a valid worldwide birth location.</span>
                 </div>
               )}
 
@@ -414,21 +515,30 @@ export default function KundliPage() {
           </div>
         )}
 
+        {/* Calculated Results Presentation */}
         {status === "calculated" && resultData && (
           <div className="space-y-8 animate-fade-in print:space-y-4">
             {/* Header / Actions Bar */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 glass rounded-2xl border border-white/5 print:border-none print:bg-transparent print:p-0">
               <div>
-                <h2 className="text-xl font-bold text-white print:text-black" style={{ fontFamily: "var(--font-outfit)" }}>{formData.name}&apos;s Natal Report</h2>
-                <p className="text-xs print:text-black" style={{ color: "var(--text-secondary)" }}>Born: {formData.dob} at {formData.time} in {formData.place}</p>
+                <h2 className="text-xl font-bold text-white print:text-black" style={{ fontFamily: "var(--font-outfit)" }}>
+                  {formData.name ? `${formData.name}'s Natal Kundli` : "Natal Kundli Report"}
+                </h2>
+                <p className="text-xs print:text-black text-white/60">
+                  Born {formData.dob} at {formData.time} in {formData.place || "Worldwide"} ({formData.timezone})
+                </p>
               </div>
-              <div className="flex gap-2 w-full sm:w-auto print:hidden">
-                <Button onClick={handleSave} variant="outline" disabled={saveStatus === "saving"} className="flex-1 sm:flex-none text-xs gap-1.5 h-10 border-white/10 hover:border-gold/30">
-                  <Save className="w-4 h-4" />
-                  {saveStatus === "saved" ? "Saved!" : saveStatus === "error" ? "Error Saving" : "Save to Dashboard"}
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto print:hidden">
+                <Button onClick={() => setStatus("idle")} variant="outline" size="sm" className="text-xs border-white/10 hover:border-gold/30">
+                  <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                  Modify Details
                 </Button>
-                <Button onClick={handleExport} disabled={exportStatus === "exporting"} className="flex-1 sm:flex-none text-xs gap-1.5 h-10" style={{ background: "var(--gradient-gold)", color: "var(--bg-primary)" }}>
-                  <Download className="w-4 h-4" />
+                <Button onClick={handleSave} variant="outline" size="sm" disabled={saveStatus === "saving"} className="text-xs border-white/10 hover:border-gold/30">
+                  <Save className="w-3.5 h-3.5 mr-1" />
+                  {saveStatus === "saved" ? "Saved!" : saveStatus === "error" ? "Error Saving" : "Save Chart"}
+                </Button>
+                <Button onClick={handleExport} size="sm" disabled={exportStatus === "exporting"} className="text-xs" style={{ background: "var(--gradient-gold)", color: "var(--bg-primary)" }}>
+                  <Download className="w-3.5 h-3.5 mr-1" />
                   {exportStatus === "exported" ? "Downloaded!" : "Export PDF"}
                 </Button>
               </div>
@@ -448,30 +558,38 @@ export default function KundliPage() {
                 />
               </div>
 
-              {/* Data sheets column */}
-              <div className="lg:col-span-2 space-y-6 print:w-full print:space-y-4">
-                {/* Placements Sheet */}
-                <div className="glass rounded-2xl p-6 border border-white/5 print:border-none print:bg-transparent print:p-0">
-                  <h3 className="text-sm font-bold uppercase tracking-wider mb-4 print:text-black" style={{ color: "var(--text-muted)" }}>Planetary Placements</h3>
+              {/* Data tables column */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Planetary Placements Table */}
+                <div className="glass rounded-2xl p-6 border border-white/5 print:border-none print:p-0">
+                  <h3 className="text-sm font-bold uppercase tracking-wider mb-4 print:text-black" style={{ color: "var(--text-muted)" }}>
+                    Planetary Positions (Vedic / Sidereal)
+                  </h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
-                        <tr className="border-b border-white/10 print:border-black" style={{ color: "var(--text-muted)" }}>
-                          <th className="pb-3 print:text-black">Planet</th>
-                          <th className="pb-3 print:text-black">Zodiac Sign</th>
-                          <th className="pb-3 print:text-black">Degrees</th>
-                          <th className="pb-3 print:text-black">House</th>
-                          <th className="pb-3 print:text-black">Dignity / Strength</th>
+                        <tr className="border-b border-white/10 print:border-black text-white/50 print:text-black">
+                          <th className="pb-2">Planet</th>
+                          <th className="pb-2">Sign (Rashi)</th>
+                          <th className="pb-2">Degrees</th>
+                          <th className="pb-2">House</th>
+                          <th className="pb-2">Motion</th>
                         </tr>
                       </thead>
-                      <tbody style={{ color: "var(--text-secondary)" }} className="print:text-black">
-                        {resultData.positions.map((pos) => (
-                          <tr key={pos.planet} className="border-b border-white/5 hover:bg-white/5 transition-colors print:border-black">
-                            <td className="py-3 font-semibold text-white print:text-black">{pos.planet}</td>
-                            <td className="py-3">{pos.sign}</td>
-                            <td className="py-3">{pos.degree}°{String(pos.minute).padStart(2, "0")}&apos; {pos.retrograde ? " (R)" : ""}</td>
-                            <td className="py-3">House {pos.house}</td>
-                            <td className="py-3">{resultData.strengths?.[pos.planet] || 70}%</td>
+                      <tbody className="divide-y divide-white/5 print:divide-black">
+                        {resultData.positions.map((p, idx) => (
+                          <tr key={idx} className="hover:bg-white/5">
+                            <td className="py-2.5 font-semibold text-white print:text-black">{p.planet}</td>
+                            <td className="py-2.5 text-white/80 print:text-black">{p.sign}</td>
+                            <td className="py-2.5 font-mono text-white/60 print:text-black">{p.degree}° {p.minute}&apos;</td>
+                            <td className="py-2.5 text-white/60 print:text-black">House {p.house}</td>
+                            <td className="py-2.5">
+                              {p.retrograde ? (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 font-mono">Retrograde (R)</span>
+                              ) : (
+                                <span className="text-white/40 text-[10px]">Direct</span>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -479,109 +597,92 @@ export default function KundliPage() {
                   </div>
                 </div>
 
-                {/* Yogas / Doshas Card */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 print:grid-cols-2">
-                  {/* Yogas */}
-                  <div className="glass rounded-xl p-5 border border-white/5 print:border-none">
-                    <span className="text-[10px] font-bold uppercase tracking-wider block mb-3 text-green-500 print:text-green-700">Active Yogas</span>
-                    <ul className="space-y-3 text-xs">
-                      {resultData.yogas?.map((y) => (
-                        <li key={y.name}>
-                          <h4 className="font-bold text-white print:text-black">{y.name}</h4>
-                          <p style={{ color: "var(--text-muted)" }} className="print:text-black">{y.description}</p>
-                        </li>
-                      ))}
-                    </ul>
+                {/* Nakshatras & Vimshottari Dasha */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Nakshatra Summary */}
+                  <div className="glass rounded-xl p-5 border border-white/5 space-y-3">
+                    <h4 className="text-xs font-bold text-gold uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Lunar Nakshatra
+                    </h4>
+                    {resultData.nakshatras?.Moon ? (
+                      <div className="space-y-1">
+                        <p className="text-base font-bold text-white">{resultData.nakshatras.Moon.name}</p>
+                        <p className="text-xs text-white/60">
+                          Pada {resultData.nakshatras.Moon.padha} • Lord: {resultData.nakshatras.Moon.ruler}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-white/50">Computed from natal Moon longitude.</p>
+                    )}
                   </div>
 
-                  {/* Doshas */}
-                  <div className="glass rounded-xl p-5 border border-white/5 print:border-none">
-                    <span className="text-[10px] font-bold uppercase tracking-wider block mb-3 text-red-500 print:text-red-700">Active Doshas</span>
-                    <ul className="space-y-3 text-xs">
-                      {resultData.doshas?.map((d) => (
-                        <li key={d.name}>
-                          <h4 className="font-bold text-white print:text-black">{d.name}</h4>
-                          <p style={{ color: "var(--text-muted)" }} className="print:text-black">{d.description}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-                {/* Remedies & Gemstones */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 print:grid-cols-2">
-                  {/* Prescribed Remedies */}
-                  <div className="glass rounded-xl p-5 border border-white/5 print:border-none">
-                    <span className="text-[10px] font-bold uppercase tracking-wider block mb-3 text-gradient-gold print:text-black font-extrabold">Prescribed Remedies</span>
-                    <ul className="space-y-2 text-xs list-disc list-inside print:text-black" style={{ color: "var(--text-secondary)" }}>
-                      {resultData.remedies?.map((rem, i) => (
-                        <li key={i}>{rem}</li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Recommended Gemstones */}
-                  <div className="glass rounded-xl p-5 border border-white/5 print:border-none">
-                    <span className="text-[10px] font-bold uppercase tracking-wider block mb-3 text-gradient-gold print:text-black font-extrabold">Recommended Gemstones</span>
-                    <ul className="space-y-3 text-xs">
-                      {resultData.gemstones?.map((g) => (
-                        <li key={g.planet}>
-                          <h4 className="font-bold text-white print:text-black">{g.stone} ({g.planet})</h4>
-                          <p style={{ color: "var(--text-muted)" }} className="print:text-black">
-                            <span className="font-semibold">Wear on:</span> {g.finger} in {g.metal}. <br />
-                            {g.benefit}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
+                  {/* Ascendant Lagna */}
+                  <div className="glass rounded-xl p-5 border border-white/5 space-y-3">
+                    <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Compass className="w-3.5 h-3.5" />
+                      Ascendant (Lagna)
+                    </h4>
+                    <div className="space-y-1">
+                      <p className="text-base font-bold text-white">{resultData.ascendant.sign}</p>
+                      <p className="text-xs text-white/60 font-mono">
+                        {resultData.ascendant.degree.toFixed(2)}°
+                      </p>
+                    </div>
                   </div>
                 </div>
 
+                {/* Yogas and Doshas */}
+                {(resultData.yogas?.length > 0 || resultData.doshas?.length > 0) && (
+                  <div className="glass rounded-2xl p-6 border border-white/5 space-y-4">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-white/70">
+                      Key Yogas & Planetary Doshas
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {resultData.yogas?.map((y, idx) => (
+                        <div key={idx} className="p-3 rounded-lg bg-white/5 border border-white/5 space-y-1">
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+                            {y.type} Yoga
+                          </span>
+                          <p className="text-xs font-bold text-white">{y.name}</p>
+                          <p className="text-[11px] text-white/60">{y.description}</p>
+                        </div>
+                      ))}
+                      {resultData.doshas?.map((d, idx) => (
+                        <div key={idx} className="p-3 rounded-lg bg-white/5 border border-white/5 space-y-1">
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">
+                            {d.severity} severity
+                          </span>
+                          <p className="text-xs font-bold text-white">{d.name}</p>
+                          <p className="text-[11px] text-white/60">{d.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Prescribed Gemstones & Remedies */}
+                {resultData.gemstones?.length > 0 && (
+                  <div className="glass rounded-2xl p-6 border border-white/5 space-y-4">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-gold">
+                      Prescribed Astrological Gemstones
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {resultData.gemstones.map((g, idx) => (
+                        <div key={idx} className="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-1">
+                          <p className="text-xs font-bold text-white">{g.stone} ({g.planet})</p>
+                          <p className="text-[11px] text-white/60">Wear on {g.finger} in {g.metal}</p>
+                          <p className="text-[11px] text-gold-light/80">{g.benefit}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-            
-            {/* Reset option */}
-            <div className="text-center print:hidden">
-              <Button onClick={() => setStatus("idle")} variant="ghost" className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Generate Another Kundli Report
-              </Button>
             </div>
           </div>
         )}
       </div>
-      
-      {/* Print custom styles */}
-      <style jsx global>{`
-        @media print {
-          body {
-            background: white !important;
-            color: black !important;
-          }
-          header, footer, nav, button, .print\\:hidden {
-            display: none !important;
-          }
-          .print\\:border-none {
-            border: none !important;
-          }
-          .print\\:bg-transparent {
-            background: transparent !important;
-            box-shadow: none !important;
-          }
-          .print\\:p-0 {
-            padding: 0 !important;
-          }
-          .print\\:text-black {
-            color: black !important;
-          }
-          svg {
-            border: 1px solid black !important;
-            background: white !important;
-          }
-          svg text {
-            fill: black !important;
-          }
-        }
-      `}</style>
     </PageWrapper>
   );
 }

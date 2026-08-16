@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       data: results 
     });
   } catch (err) {
-    console.error("Location search error:", err);
+    console.error("Locations search error:", err);
     return NextResponse.json(
       { success: false, error: "Failed to query global gazetteer." },
       { status: 500 }
