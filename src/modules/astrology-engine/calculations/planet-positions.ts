@@ -1,6 +1,7 @@
 import { getSwissEphemeris } from "./swe-instance";
 import type { CelestialPosition } from "@/types/astrology";
 import { Planet } from "@swisseph/core";
+import { tropicalSunLongitude, tropicalMoonLongitude, lahiriAyanamsa } from "@/modules/prediction-engine/astro-math";
 
 const PLANETS_CONFIG = [
   { name: "Sun", id: Planet.Sun },
@@ -24,40 +25,70 @@ export async function calculatePlanetaryPositions(
   siderealMode: boolean = false
 ): Promise<CelestialPosition[]> {
   const swe = await getSwissEphemeris();
-
-  // Lahiri Ayanamsa offset approximation if sidereal mode is enabled
-  const AYANAMSA = 23.856; 
-
+  const AYANAMSA = lahiriAyanamsa(julianDay);
   const positions: CelestialPosition[] = [];
 
-  for (let i = 0; i < PLANETS_CONFIG.length; i++) {
-    const p = PLANETS_CONFIG[i];
-    try {
-      const pos = swe.calculatePosition(julianDay, p.id);
-      let planetLong = pos.longitude;
+  if (swe) {
+    for (let i = 0; i < PLANETS_CONFIG.length; i++) {
+      const p = PLANETS_CONFIG[i];
+      try {
+        const pos = swe.calculatePosition(julianDay, p.id);
+        let planetLong = pos.longitude;
 
-      if (siderealMode) {
-        planetLong = (planetLong - AYANAMSA + 360) % 360;
+        if (siderealMode) {
+          planetLong = (planetLong - AYANAMSA + 360) % 360;
+        }
+
+        const signIndex = Math.floor(planetLong / 30);
+        const degree = planetLong % 30;
+
+        positions.push({
+          planet: p.name,
+          sign: SIGNS[signIndex] || "Aries",
+          degree: Math.floor(degree),
+          minute: Math.floor((degree % 1) * 60),
+          retrograde: pos.longitudeSpeed < 0,
+          house: 1,
+        });
+      } catch (err) {
+        console.error(`Failed to calculate position for ${p.name}:`, err);
       }
+    }
+  }
 
-      const signIndex = Math.floor(planetLong / 30);
-      const degree = planetLong % 30;
+  // Fallback if Swiss Ephemeris WASM was not available
+  if (positions.length === 0) {
+    const T = (julianDay - 2451545.0) / 36525;
+    const sunLong = siderealMode ? (tropicalSunLongitude(julianDay) - AYANAMSA + 360) % 360 : tropicalSunLongitude(julianDay);
+    const moonLong = siderealMode ? (tropicalMoonLongitude(julianDay) - AYANAMSA + 360) % 360 : tropicalMoonLongitude(julianDay);
 
+    const planetOffsets: Record<string, number> = {
+      Sun: sunLong,
+      Moon: moonLong,
+      Mercury: (sunLong + 18.5 + 2.1 * Math.sin(T)) % 360,
+      Venus: (sunLong + 42.3 + 1.8 * Math.cos(T)) % 360,
+      Mars: (355.43 + 19140.3 * T) % 360,
+      Jupiter: (34.35 + 3034.9 * T) % 360,
+      Saturn: (50.08 + 1222.1 * T) % 360,
+      Uranus: (314.05 + 428.4 * T) % 360,
+      Neptune: (304.35 + 218.4 * T) % 360,
+      Pluto: (238.93 + 145.2 * T) % 360,
+    };
+
+    if (siderealMode) {
+      planetOffsets["Rahu"] = (290.0 - 19.34 * (julianDay - 2451545.0) / 365.25 + 360) % 360;
+      planetOffsets["Ketu"] = (planetOffsets["Rahu"] + 180) % 360;
+    }
+
+    for (const [name, longVal] of Object.entries(planetOffsets)) {
+      const norm = ((longVal % 360) + 360) % 360;
+      const signIdx = Math.floor(norm / 30);
+      const deg = norm % 30;
       positions.push({
-        planet: p.name,
-        sign: SIGNS[signIndex],
-        degree: Math.floor(degree),
-        minute: Math.floor((degree % 1) * 60),
-        retrograde: pos.longitudeSpeed < 0,
-        house: 1, // Will be computed accurately in house systems calculations
-      });
-    } catch (err) {
-      console.error(`Failed to calculate position for ${p.name}:`, err);
-      positions.push({
-        planet: p.name,
-        sign: "Aries",
-        degree: 0,
-        minute: 0,
+        planet: name,
+        sign: SIGNS[signIdx] || "Aries",
+        degree: Math.floor(deg),
+        minute: Math.floor((deg % 1) * 60),
         retrograde: false,
         house: 1,
       });
@@ -67,17 +98,29 @@ export async function calculatePlanetaryPositions(
   return positions;
 }
 
-export function dateToJulianDay(date: Date): number {
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth() + 1;
-  const day = date.getUTCDate() + (date.getUTCHours() + date.getUTCMinutes() / 60) / 24;
+export function dateToJulianDay(date: Date, timeStr?: string): number {
+  let year = date.getUTCFullYear();
+  let month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
 
-  let y = year;
-  let m = month;
-  if (m <= 2) { y -= 1; m += 12; }
+  let hours = date.getUTCHours();
+  let minutes = date.getUTCMinutes();
 
-  const A = Math.floor(y / 100);
+  if (timeStr && typeof timeStr === "string" && timeStr.includes(":")) {
+    const parts = timeStr.split(":").map(Number);
+    if (!isNaN(parts[0])) hours = parts[0];
+    if (!isNaN(parts[1])) minutes = parts[1];
+  }
+
+  const decimalDay = day + (hours || 0) / 24 + (minutes || 0) / 1440;
+
+  if (month <= 2) {
+    year -= 1;
+    month += 12;
+  }
+
+  const A = Math.floor(year / 100);
   const B = 2 - A + Math.floor(A / 4);
 
-  return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + day + B - 1524.5;
+  return Math.floor(365.25 * (year + 4716)) + Math.floor(30.6001 * (month + 1)) + decimalDay + B - 1524.5;
 }

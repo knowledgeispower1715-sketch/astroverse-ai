@@ -21,9 +21,13 @@ const ALIAS_MAP: Record<string, string> = {
   "canton": "guangzhou",
   "saigon": "ho chi minh city",
   "munich": "munchen",
+  "munchen": "munich",
   "vienna": "wien",
+  "wien": "vienna",
   "prague": "praha",
+  "praha": "prague",
   "rome": "roma",
+  "roma": "rome",
   "florence": "firenze",
   "venice": "venezia",
   "lisbon": "lisboa",
@@ -61,6 +65,7 @@ export async function searchLocations(
 
   // Check alias (e.g. "bombay" -> "mumbai")
   const aliasQuery = ALIAS_MAP[q] || "";
+  const effectiveQ = aliasQuery || q;
 
   // -------------------------------------------------------------
   // TIER 1: Search PostgreSQL Database via Supabase (if available)
@@ -68,10 +73,15 @@ export async function searchLocations(
   try {
     const supabase = createClient();
     if (supabase && typeof supabase.from === "function") {
+      const searchTerms = [q, aliasQuery].filter(Boolean);
+      const orFilter = searchTerms
+        .map((t) => `name.ilike.${t}%,ascii_name.ilike.${t}%,alternate_names.ilike.%${t}%`)
+        .join(",");
+
       let dbQuery = supabase
         .from("locations")
         .select("id, geoname_id, name, admin1_name, admin2_name, country_name, country_code, latitude, longitude, timezone, population")
-        .or(`name.ilike.${q}%,ascii_name.ilike.${q}%,alternate_names.ilike.%${q}%`)
+        .or(orFilter)
         .order("population", { ascending: false })
         .limit(limit);
 
@@ -161,7 +171,8 @@ export async function searchLocations(
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2500);
 
-      const endpoint = `https://photon.komoot.io/api/?q=${encodeURIComponent(rawQ)}&limit=8`;
+      const targetQ = aliasQuery || rawQ;
+      const endpoint = `https://photon.komoot.io/api/?q=${encodeURIComponent(targetQ)}&limit=8`;
       const res = await fetch(endpoint, {
         signal: controller.signal,
         headers: { "Accept": "application/json" },
@@ -219,10 +230,12 @@ export async function searchLocations(
   const sorted = results.sort((a, b) => {
     const aName = normalize(a.name);
     const bName = normalize(b.name);
-    if (aName === q && bName !== q) return -1;
-    if (bName === q && aName !== q) return 1;
-    if (aName.startsWith(q) && !bName.startsWith(q)) return -1;
-    if (bName.startsWith(q) && !aName.startsWith(q)) return 1;
+    const matchTarget = effectiveQ;
+
+    if (aName === matchTarget && bName !== matchTarget) return -1;
+    if (bName === matchTarget && aName !== matchTarget) return 1;
+    if (aName.startsWith(matchTarget) && !bName.startsWith(matchTarget)) return -1;
+    if (bName.startsWith(matchTarget) && !aName.startsWith(matchTarget)) return 1;
     return (b.population || 0) - (a.population || 0);
   });
 

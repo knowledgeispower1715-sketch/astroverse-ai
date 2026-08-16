@@ -1,23 +1,29 @@
 import { SwissEphemeris } from "@swisseph/browser";
 import path from "path";
+import { pathToFileURL } from "url";
 
 let sweInstance: SwissEphemeris | null = null;
 
-export async function getSwissEphemeris(): Promise<SwissEphemeris> {
+export async function getSwissEphemeris(): Promise<SwissEphemeris | null> {
   if (sweInstance) return sweInstance;
 
-  const swe = new SwissEphemeris();
-  
-  // Resolve the WASM file relative to the project root for server-side Next.js execution
-  const wasmPath = path.join(process.cwd(), "node_modules", "@swisseph", "browser", "dist", "swisseph.wasm");
-  
   try {
-    await swe.init(wasmPath);
+    const swe = new SwissEphemeris();
+    const wasmPath = path.join(process.cwd(), "node_modules", "@swisseph", "browser", "dist", "swisseph.wasm");
+    
+    // Support Windows file URLs in Node/Next environments
+    const wasmUrl = pathToFileURL(wasmPath).href;
+
+    try {
+      await swe.init(wasmUrl);
+    } catch {
+      await swe.init(wasmPath);
+    }
+
+    sweInstance = swe;
+    return sweInstance;
   } catch (err) {
-    console.warn("Failed to initialize Swiss Ephemeris with local absolute path. Retrying default URL resolver...", err);
-    await swe.init(); // fallback to default
+    console.warn("[SwissEphemeris] WASM binary initialization failed, falling back to analytical ephemeris engine:", (err as Error).message);
+    return null;
   }
-  
-  sweInstance = swe;
-  return sweInstance;
 }
