@@ -11,6 +11,13 @@ export * from './canonical-context';
 export * from './rule-engine';
 export * from './timing/transit-timeline';
 export * from './explorers/planet-explorer';
+export * from './vargas/varga-engine';
+export * from './ashtakavarga/ashtakavarga-engine';
+export * from './kp/kp-engine';
+export * from './bhava-chalit/bhava-chalit-engine';
+export * from './dashas/yogini-dasha';
+export * from './cross-validation/cross-validator';
+export * from './audit/calculation-audit';
 
 import type { AstrologyProvider } from './types';
 import type { AstrologySystemId } from '@/types/astrology';
